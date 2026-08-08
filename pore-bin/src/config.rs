@@ -57,7 +57,7 @@ pub struct SearchConfig {
 
 impl Default for SearchConfig {
     fn default() -> SearchConfig {
-        return SearchConfig {
+        SearchConfig {
             json: false,
             limit: 1000,
             threshold: 0.0,
@@ -66,7 +66,7 @@ impl Default for SearchConfig {
             rebuild_index: false,
             update: true,
             in_memory: false,
-        };
+        }
     }
 }
 
@@ -75,12 +75,12 @@ impl SearchConfig {
     ///
     /// `search_dir` is the subdirectory within the index to restrict results to.
     pub fn to_opts(&self, search_dir: &str) -> FileSearchOptions {
-        return FileSearchOptions {
+        FileSearchOptions {
             limit: self.limit,
             threshold: self.threshold,
             filename_only: self.filename_only,
             root_dir: Some(search_dir.to_string()),
-        };
+        }
     }
 }
 
@@ -108,15 +108,14 @@ pub fn load_config(
 ) -> Result<(FileIndexOptionsShape, SearchConfigOpt), anyhow::Error> {
     let path_str = path.to_string_lossy();
     let mut config_home = env::var("XDG_CONFIG_HOME").unwrap_or("".to_string());
-    if config_home == "" {
+    if config_home.is_empty() {
         config_home = env::var("HOME")? + "/.config";
     }
     let config_file = PathBuf::from(config_home).join(CONFIG_FILE);
     if config_file.exists() {
         let contents = &fs::read_to_string(&config_file)?;
-        let value = contents
-            .parse::<Value>()
-            .expect(&format!("Error parsing config file {:?}", config_file));
+        let value: Value = toml::from_str(contents)
+            .map_err(|e| anyhow!("Error parsing config file {:?}: {}", config_file, e))?;
         let mut index: FileIndexOptionsShape = value.clone().try_into()?;
         let mut search: SearchConfigOpt = value.clone().try_into()?;
 
@@ -141,16 +140,18 @@ pub fn load_config(
                 }
             }
             // if index exists, find global index and load it
-            if index_name.is_some() {
-                if let Some(global_index) = table.get(&format!("index-{}", index_name.unwrap())) {
+            if let Some(name) = index_name {
+                if let Some(global_index) = table.get(&format!("index-{}", name)) {
                     index.merge_from(&global_index.clone().try_into()?);
                     search.merge_from(&global_index.clone().try_into()?);
                     found_index = true;
                 }
             }
         }
-        if index_name.is_some() && !found_index {
-            bail!("Could not find index '{}'", index_name.unwrap());
+        if let Some(name) = index_name {
+            if !found_index {
+                bail!("Could not find index '{}'", name);
+            }
         }
 
         return Ok((index, search));
@@ -163,7 +164,6 @@ mod tests {
     use std::{env, fs, path::PathBuf, str::FromStr};
 
     use pore_core::FileIndexOptions;
-    use toml::Value;
 
     use crate::config::{FileIndexOptionsShape, SearchConfigOpt};
 
@@ -211,17 +211,18 @@ limit = 4
         let conf_file = PathBuf::from(tmpdir.path()).join(CONFIG_FILE);
         fs::write(
             conf_file,
-            "threads = 10
-        [index-global_index]
-        threads = 20
+            r#"threads = 10
 
-        [local-1]
-        path = '/foo'
-        threads = 30
+[index-global_index]
+threads = 20
 
-        [local-1.local_index]
-            threads = 40
-            ",
+[local-1]
+path = '/foo'
+threads = 30
+
+[local-1.local_index]
+threads = 40
+"#,
         )
         .unwrap();
 
@@ -241,9 +242,8 @@ limit = 4
     fn example_file_is_complete() {
         let example = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("pore.example.toml");
         let contents = &fs::read_to_string(&example).unwrap();
-        let value = contents
-            .parse::<Value>()
-            .expect(&format!("Error parsing config file {:?}", example));
+        let value: toml::Value =
+            toml::from_str(contents).expect(&format!("Error parsing config file {:?}", example));
         let index: FileIndexOptionsShape = value.clone().try_into().unwrap();
         let search: SearchConfigOpt = value.clone().try_into().unwrap();
         if let Err(missing_fields) = index.all() {

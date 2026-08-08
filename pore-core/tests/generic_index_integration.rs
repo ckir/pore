@@ -6,11 +6,8 @@ use std::collections::HashMap;
 
 #[test]
 fn add_and_search_documents() {
-    let (_tmp, mut index) = create_test_generic_index(
-        "id",
-        &["title", "body"],
-        IndexOptions::default(),
-    );
+    let (_tmp, mut index) =
+        create_test_generic_index("id", &["title", "body"], IndexOptions::default());
 
     let mut doc1 = HashMap::new();
     doc1.insert("id".to_string(), "1".to_string());
@@ -34,11 +31,7 @@ fn add_and_search_documents() {
 
 #[test]
 fn delete_documents_by_id() {
-    let (_tmp, mut index) = create_test_generic_index(
-        "id",
-        &["text"],
-        IndexOptions::default(),
-    );
+    let (_tmp, mut index) = create_test_generic_index("id", &["text"], IndexOptions::default());
 
     let mut doc = HashMap::new();
     doc.insert("id".to_string(), "1".to_string());
@@ -56,11 +49,7 @@ fn delete_documents_by_id() {
 
 #[test]
 fn update_documents_replaces_fields() {
-    let (_tmp, mut index) = create_test_generic_index(
-        "id",
-        &["text"],
-        IndexOptions::default(),
-    );
+    let (_tmp, mut index) = create_test_generic_index("id", &["text"], IndexOptions::default());
 
     let mut doc = HashMap::new();
     doc.insert("id".to_string(), "1".to_string());
@@ -85,21 +74,15 @@ fn update_documents_replaces_fields() {
 
 #[test]
 fn delete_nonexistent_id_is_noop() {
-    let (_tmp, mut index) = create_test_generic_index(
-        "id",
-        &["text"],
-        IndexOptions::default(),
-    );
-    index.delete_documents(vec!["nonexistent".to_string()]).unwrap();
+    let (_tmp, mut index) = create_test_generic_index("id", &["text"], IndexOptions::default());
+    index
+        .delete_documents(vec!["nonexistent".to_string()])
+        .unwrap();
 }
 
 #[test]
 fn empty_index_returns_no_results() {
-    let (_tmp, index) = create_test_generic_index(
-        "id",
-        &["text"],
-        IndexOptions::default(),
-    );
+    let (_tmp, index) = create_test_generic_index("id", &["text"], IndexOptions::default());
     use tantivy::query::QueryParser;
     let query_parser = QueryParser::for_index(index.index(), index.get_text_fields());
     let query = query_parser.parse_query("anything").unwrap();
@@ -109,11 +92,7 @@ fn empty_index_returns_no_results() {
 
 #[test]
 fn search_with_limit() {
-    let (_tmp, mut index) = create_test_generic_index(
-        "id",
-        &["text"],
-        IndexOptions::default(),
-    );
+    let (_tmp, mut index) = create_test_generic_index("id", &["text"], IndexOptions::default());
 
     for i in 0..5 {
         let mut doc = HashMap::new();
@@ -122,29 +101,33 @@ fn search_with_limit() {
         index.add_documents(vec![doc]).unwrap();
     }
 
-    let query_parser = tantivy::query::QueryParser::for_index(index.index(), index.get_text_fields());
+    let query_parser =
+        tantivy::query::QueryParser::for_index(index.index(), index.get_text_fields());
     let query = query_parser.parse_query("test").unwrap();
-    let opts = SearchOptions { limit: 2, ..Default::default() };
+    let opts = SearchOptions {
+        limit: 2,
+        ..Default::default()
+    };
     let results = index.search(&query, &opts).unwrap();
     assert!(results.len() <= 2);
 }
 
 #[test]
 fn search_with_threshold() {
-    let (_tmp, mut index) = create_test_generic_index(
-        "id",
-        &["text"],
-        IndexOptions::default(),
-    );
+    let (_tmp, mut index) = create_test_generic_index("id", &["text"], IndexOptions::default());
 
     let mut doc = HashMap::new();
     doc.insert("id".to_string(), "1".to_string());
     doc.insert("text".to_string(), "hello".to_string());
     index.add_documents(vec![doc]).unwrap();
 
-    let query_parser = tantivy::query::QueryParser::for_index(index.index(), index.get_text_fields());
+    let query_parser =
+        tantivy::query::QueryParser::for_index(index.index(), index.get_text_fields());
     let query = query_parser.parse_query("hello").unwrap();
-    let opts = SearchOptions { threshold: 0.0, ..Default::default() };
+    let opts = SearchOptions {
+        threshold: 0.0,
+        ..Default::default()
+    };
     let results = index.search(&query, &opts).unwrap();
     assert_eq!(results.len(), 1);
 }

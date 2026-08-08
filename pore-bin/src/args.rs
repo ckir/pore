@@ -83,7 +83,7 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
                 .short('i')
                 .long("index")
                 .num_args(1)
-                .conflicts_with_all(&["in_memory", "no_memory", "hidden", "no_hidden", "follow_links", "no_follow_links", "language", "glob", "oglob", "glob_case_insensitive"])
+                .conflicts_with_all(["in_memory", "no_memory", "hidden", "no_hidden", "follow_links", "no_follow_links", "language", "glob", "oglob", "glob_case_insensitive"])
                 .help("Use the specified index for querying (must be specified in the config file)")
         )
         .arg(
@@ -236,7 +236,7 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
         )
         .group(
             ArgGroup::new("commands")
-             .args(&["files", "indexes", "delete"])
+             .args(["files", "indexes", "delete"])
             )
         .arg(
             Arg::new("files")
@@ -330,14 +330,17 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
     } else if matches.contains_id("indexes") && matches.get_flag("indexes") {
         command = CmdArg::ListIndex;
     }
-    let search_dir = matches.get_one::<String>("dir").cloned().unwrap_or_default();
+    let search_dir = matches
+        .get_one::<String>("dir")
+        .cloned()
+        .unwrap_or_default();
     let query_path = if search_dir.is_empty() {
         env::current_dir()?
     } else {
         fs::canonicalize(Path::new(&search_dir))?
     };
 
-    return Ok(GlobalConfig {
+    Ok(GlobalConfig {
         index,
         search,
         command,
@@ -345,5 +348,5 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
         query_path,
         search_dir,
         index_name: matches.get_one::<String>("index").cloned(),
-    });
+    })
 }

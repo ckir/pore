@@ -22,7 +22,6 @@ use crate::location;
 use crate::location::DocResult;
 use chrono::DateTime;
 use chrono::Local;
-use chrono::NaiveDateTime;
 use chrono::Utc;
 use ignore::overrides::OverrideBuilder;
 use ignore::WalkBuilder;
@@ -155,7 +154,10 @@ impl FileMetadata {
         Ok(FileMetadata {
             config,
             version: env!("CARGO_PKG_VERSION").to_string(),
-            last_update: DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
+            last_update: DateTime::<Utc>::from_naive_utc_and_offset(
+                chrono::DateTime::<Utc>::UNIX_EPOCH.naive_utc(),
+                Utc,
+            ),
             for_dir: fs::canonicalize(if path.is_absolute() {
                 path.to_path_buf()
             } else {
@@ -318,7 +320,7 @@ impl FileIndex {
             let mut globs = OverrideBuilder::new(&self.meta.for_dir);
             globs.case_insensitive(self.meta.config.glob_case_insensitive)?;
             for glob in &self.meta.config.glob {
-                globs.add(&glob)?;
+                globs.add(glob)?;
             }
             builder.overrides(globs.build()?);
         }
@@ -326,15 +328,15 @@ impl FileIndex {
             let mut globs = OverrideBuilder::new(&self.meta.for_dir);
             globs.case_insensitive(self.meta.config.glob_case_insensitive)?;
             for glob in &self.meta.config.oglob {
-                globs.add(&glob)?;
+                globs.add(glob)?;
             }
             let matcher = globs.build()?;
             builder.filter_entry(move |e| {
                 if e.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
-                    return true;
+                    true
                 } else {
-                    return matcher.matched(e.path(), false).is_whitelist();
-                };
+                    matcher.matched(e.path(), false).is_whitelist()
+                }
             });
         }
         Ok(builder)
@@ -361,7 +363,7 @@ impl FileIndex {
                                 self.filepath => String::from(filepath.to_string_lossy()),
                                 self.contents => contents,
                             );
-                            index_writer.add_document(doc);
+                            let _ = index_writer.add_document(doc);
                         }
                     }
                 }
@@ -378,7 +380,7 @@ impl FileIndex {
             )?;
         }
 
-        return Ok(self);
+        Ok(self)
     }
 
     /// Executes a search query against the file index.
@@ -387,7 +389,7 @@ impl FileIndex {
     /// with matching line numbers and text when `filename_only` is false.
     pub fn search(
         &self,
-        query: &Box<dyn Query>,
+        query: &dyn Query,
         opts: &FileSearchOptions,
     ) -> Result<Vec<FileSearchResult>, anyhow::Error> {
         let reader = self
@@ -419,8 +421,8 @@ impl FileIndex {
 
             let mut lines = Vec::new();
             if !opts.filename_only {
-                if let Some(mut position_data) = position_map.get_mut(&doc_result.address) {
-                    location::positions_to_lines(&self, &fullpath, &mut position_data, &mut lines)?
+                if let Some(position_data) = position_map.get_mut(&doc_result.address) {
+                    location::positions_to_lines(self, &fullpath, position_data, &mut lines)?
                 };
             }
             results.push(FileSearchResult {

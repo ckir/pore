@@ -26,9 +26,9 @@ pub enum ColorMode {
     Never,
 }
 
-impl Into<ColorChoice> for ColorMode {
-    fn into(self) -> ColorChoice {
-        match self {
+impl From<ColorMode> for ColorChoice {
+    fn from(val: ColorMode) -> Self {
+        match val {
             ColorMode::Auto => ColorChoice::Auto,
             ColorMode::Always => ColorChoice::Always,
             ColorMode::Ansi => ColorChoice::AlwaysAnsi,
@@ -63,7 +63,7 @@ impl FromStr for ColorMode {
 /// which is parsed into a [`ColorMode`].
 impl mlua::FromLua for ColorMode {
     fn from_lua(value: mlua::Value, _lua: &mlua::Lua) -> mlua::Result<Self> {
-        return match &value {
+        match &value {
             mlua::Value::String(str) => ColorMode::from_str(&str.to_str()?).map_err(|e| {
                 mlua::Error::FromLuaConversionError {
                     from: "string",
@@ -76,7 +76,7 @@ impl mlua::FromLua for ColorMode {
                 to: "ColorMode".to_string(),
                 message: Some("Value is not a string".to_string()),
             }),
-        };
+        }
     }
 }
 
@@ -87,16 +87,23 @@ mod tests {
 
     #[test]
     fn color_mode_from_str_valid() {
-        assert_eq!(ColorMode::from_str("auto").unwrap(), ColorMode::Auto);
+        // "always", "ansi", "never" parse deterministically.
+        // "auto" is TTY-dependent, so we test it separately.
         assert_eq!(ColorMode::from_str("always").unwrap(), ColorMode::Always);
         assert_eq!(ColorMode::from_str("ansi").unwrap(), ColorMode::Ansi);
         assert_eq!(ColorMode::from_str("never").unwrap(), ColorMode::Never);
+        // "auto" returns either Auto (TTY) or Never (no TTY) — both are valid
+        let auto_result = ColorMode::from_str("auto").unwrap();
+        assert!(auto_result == ColorMode::Auto || auto_result == ColorMode::Never);
     }
 
     #[test]
     fn color_mode_from_str_case_insensitive() {
-        assert_eq!(ColorMode::from_str("AUTO").unwrap(), ColorMode::Auto);
-        assert_eq!(ColorMode::from_str("Always").unwrap(), ColorMode::Always);
+        assert_eq!(ColorMode::from_str("ALWAYS").unwrap(), ColorMode::Always);
+        assert_eq!(ColorMode::from_str("Never").unwrap(), ColorMode::Never);
+        // "auto" is TTY-dependent
+        let auto_result = ColorMode::from_str("AUTO").unwrap();
+        assert!(auto_result == ColorMode::Auto || auto_result == ColorMode::Never);
     }
 
     #[test]

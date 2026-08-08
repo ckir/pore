@@ -7,7 +7,10 @@ use std::fs;
 #[test]
 fn create_and_update_index() {
     let (_tmp, mut index) = create_test_file_index(
-        &[("file1.txt", "hello world from pore"), ("file2.txt", "testing search engine")],
+        &[
+            ("file1.txt", "hello world from pore"),
+            ("file2.txt", "testing search engine"),
+        ],
         FileIndexOptions::default(),
     );
     index.update(false).unwrap();
@@ -16,7 +19,10 @@ fn create_and_update_index() {
 #[test]
 fn search_returns_matching_files() {
     let (_tmp, mut index) = create_test_file_index(
-        &[("file1.txt", "hello world from pore"), ("file2.txt", "nothing here")],
+        &[
+            ("file1.txt", "hello world from pore"),
+            ("file2.txt", "nothing here"),
+        ],
         FileIndexOptions::default(),
     );
     index.update(false).unwrap();
@@ -27,12 +33,14 @@ fn search_returns_matching_files() {
 
 #[test]
 fn search_no_matches_returns_empty() {
-    let (_tmp, mut index) = create_test_file_index(
-        &[("file1.txt", "hello world")],
-        FileIndexOptions::default(),
-    );
+    let (_tmp, mut index) =
+        create_test_file_index(&[("file1.txt", "hello world")], FileIndexOptions::default());
     index.update(false).unwrap();
-    let results = search_file_index(&index, "nonexistent_term_xyz", &FileSearchOptions::default());
+    let results = search_file_index(
+        &index,
+        "nonexistent_term_xyz",
+        &FileSearchOptions::default(),
+    );
     assert!(results.is_empty());
 }
 
@@ -47,7 +55,10 @@ fn search_with_limit() {
         FileIndexOptions::default(),
     );
     index.update(false).unwrap();
-    let opts = FileSearchOptions { limit: 2, ..Default::default() };
+    let opts = FileSearchOptions {
+        limit: 2,
+        ..Default::default()
+    };
     let results = search_file_index(&index, "hello", &opts);
     assert!(results.len() <= 2);
 }
@@ -59,7 +70,10 @@ fn search_with_threshold_filters() {
         FileIndexOptions::default(),
     );
     index.update(false).unwrap();
-    let opts = FileSearchOptions { threshold: 0.5, ..Default::default() };
+    let opts = FileSearchOptions {
+        threshold: 0.5,
+        ..Default::default()
+    };
     let results = search_file_index(&index, "hello", &opts);
     for r in &results {
         assert!(r.score() >= 0.5);
@@ -73,7 +87,10 @@ fn search_filename_only_omits_lines() {
         FileIndexOptions::default(),
     );
     index.update(false).unwrap();
-    let opts = FileSearchOptions { filename_only: true, ..Default::default() };
+    let opts = FileSearchOptions {
+        filename_only: true,
+        ..Default::default()
+    };
     let results = search_file_index(&index, "hello", &opts);
     assert_eq!(results.len(), 1);
     assert!(results[0].lines().is_empty());
@@ -120,10 +137,8 @@ fn update_rebuild_forces_full_reindex() {
 
 #[test]
 fn delete_index_removes_files() {
-    let (_tmp, index) = create_test_file_index(
-        &[("file.txt", "content")],
-        FileIndexOptions::default(),
-    );
+    let (_tmp, index) =
+        create_test_file_index(&[("file.txt", "content")], FileIndexOptions::default());
     // delete_index uses fs::remove_dir which cannot remove non-empty directories
     // (Tantivy creates subdirectories). We assert the operation returns Ok(true)
     // to confirm it attempted deletion.

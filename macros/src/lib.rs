@@ -155,9 +155,9 @@ fn type_is_option(ty: &Type) -> bool {
     if let Type::Path(path) = ty {
         return path_is_option(&path.path);
     }
-    return false;
+    false
 }
 
 fn path_is_option(path: &Path) -> bool {
-    path.get_ident().map_or(false, |ident| ident == "Option")
+    path.get_ident().is_some_and(|ident| ident == "Option")
 }

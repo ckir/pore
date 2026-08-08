@@ -12,11 +12,9 @@
 //!   directory.
 
 use chrono::DateTime;
-use chrono::NaiveDateTime;
 use chrono::Utc;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -38,8 +36,10 @@ pub trait IndexMetadata<T: MetadataConfig + Eq> {
     /// Returns the stored configuration.
     fn config(&self) -> &T;
     /// Returns the pore version that created this index.
+    #[expect(dead_code)]
     fn version(&self) -> &str;
     /// Returns the timestamp of the last successful index update.
+    #[expect(dead_code)]
     fn last_update(&self) -> &DateTime<Utc>;
     /// Updates the last-update timestamp.
     fn set_last_update(&mut self, time: DateTime<Utc>);
@@ -66,7 +66,10 @@ impl<T: MetadataConfig + Eq> Metadata<T> {
         Metadata {
             config,
             version: env!("CARGO_PKG_VERSION").to_string(),
-            last_update: DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
+            last_update: DateTime::<Utc>::from_naive_utc_and_offset(
+                chrono::DateTime::<Utc>::UNIX_EPOCH.naive_utc(),
+                Utc,
+            ),
         }
     }
 }
@@ -158,7 +161,7 @@ pub fn create_index<
                 .build();
             tokenizers.insert(key.clone(), tokenizer);
         }
-        return key;
+        key
     };
     let mut schema_builder = Schema::builder();
     schema_builder.add_text_field(id_field, STRING | STORED);
@@ -181,11 +184,9 @@ pub fn create_index<
             // corrupted. Delete all files in the dir and try again.
             if index_res.is_err() {
                 eprintln!("Index is corrupted. Deleting index files");
-                for dir_entry in fs::read_dir(&index_dir)? {
-                    if let Ok(entry) = dir_entry {
-                        if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
-                            fs::remove_file(entry.path())?;
-                        }
+                for entry in fs::read_dir(&index_dir)?.flatten() {
+                    if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+                        fs::remove_file(entry.path())?;
                     }
                 }
                 index_res = Index::open_or_create(MmapDirectory::open(&index_dir)?, schema.clone());
@@ -208,7 +209,7 @@ pub fn create_index<
 /// `Ok(true)` if the on-disk index was deleted, `Ok(false)` otherwise.
 pub fn delete_index(index: &Index, cache_dir: Option<&Path>) -> anyhow::Result<bool> {
     match cache_dir {
-        None => return Ok(false),
+        None => Ok(false),
         Some(index_dir) => {
             if !index_dir.exists() {
                 return Ok(false);
@@ -218,7 +219,7 @@ pub fn delete_index(index: &Index, cache_dir: Option<&Path>) -> anyhow::Result<b
             index_writer.commit()?;
             let metafile = index_dir.join(METADATA_FILE);
             fs::remove_file(metafile).ok();
-            fs::remove_dir(&index_dir).ok();
+            fs::remove_dir(index_dir).ok();
             Ok(true)
         }
     }
@@ -265,14 +266,13 @@ mod tests {
         let config = TestConfig {
             language: LanguageRef::English,
         };
-        let (meta_opt, index) =
-            create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
-                None::<&Path>,
-                &config,
-                "id",
-                vec!["text".to_string()],
-            )
-            .unwrap();
+        let (meta_opt, index) = create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
+            None::<&Path>,
+            &config,
+            "id",
+            vec!["text".to_string()],
+        )
+        .unwrap();
         assert!(meta_opt.is_none());
         assert!(index.schema().get_field("id").is_ok());
         assert!(index.schema().get_field("text").is_ok());
@@ -284,14 +284,13 @@ mod tests {
         let config = TestConfig {
             language: LanguageRef::English,
         };
-        let (meta_opt, index) =
-            create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
-                Some(tmp.path()),
-                &config,
-                "id",
-                vec!["text".to_string()],
-            )
-            .unwrap();
+        let (meta_opt, index) = create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
+            Some(tmp.path()),
+            &config,
+            "id",
+            vec!["text".to_string()],
+        )
+        .unwrap();
         assert!(meta_opt.is_none());
         // Verify index was created on disk (directory is non-empty)
         assert!(tmp.path().read_dir().unwrap().next().is_some());
@@ -308,14 +307,13 @@ mod tests {
         let meta_json = serde_json::to_string(&meta).unwrap();
         fs::write(tmp.path().join(METADATA_FILE), &meta_json).unwrap();
         // Now create_index should load the existing metadata
-        let (meta_opt, _) =
-            create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
-                Some(tmp.path()),
-                &config,
-                "id",
-                vec!["text".to_string()],
-            )
-            .unwrap();
+        let (meta_opt, _) = create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
+            Some(tmp.path()),
+            &config,
+            "id",
+            vec!["text".to_string()],
+        )
+        .unwrap();
         assert!(meta_opt.is_some());
     }
 
@@ -324,14 +322,13 @@ mod tests {
         let config = TestConfig {
             language: LanguageRef::English,
         };
-        let (_, index) =
-            create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
-                None::<&Path>,
-                &config,
-                "id",
-                vec!["text".to_string()],
-            )
-            .unwrap();
+        let (_, index) = create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
+            None::<&Path>,
+            &config,
+            "id",
+            vec!["text".to_string()],
+        )
+        .unwrap();
         let result = delete_index(&index, None).unwrap();
         assert!(!result);
     }
@@ -342,14 +339,13 @@ mod tests {
         let config = TestConfig {
             language: LanguageRef::English,
         };
-        let (_, index) =
-            create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
-                Some(tmp.path()),
-                &config,
-                "id",
-                vec!["text".to_string()],
-            )
-            .unwrap();
+        let (_, index) = create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
+            Some(tmp.path()),
+            &config,
+            "id",
+            vec!["text".to_string()],
+        )
+        .unwrap();
         // delete_index attempts cleanup; returns true when given a real path
         let result = delete_index(&index, Some(tmp.path())).unwrap();
         assert!(result);

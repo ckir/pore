@@ -70,38 +70,36 @@ fn run_cmd() -> Result<bool, anyhow::Error> {
             conf.index_name.as_deref(),
         )?)
     };
-    let mut index = FileIndex::get_or_create(conf.query_path, cache_dir, &index.into())?;
+    let mut index = FileIndex::get_or_create(conf.query_path, cache_dir, &index)?;
 
     match conf.command {
         CmdArg::Delete => {
             index.delete()?;
-            return Ok(true);
+            Ok(true)
         }
         CmdArg::ListFiles => {
             let walker = index.get_file_walker()?;
-            for result in walker.build() {
-                if let Ok(entry) = result {
-                    println!("{}", entry.path().to_string_lossy());
-                }
+            for entry in walker.build().flatten() {
+                println!("{}", entry.path().to_string_lossy());
             }
-            return Ok(true);
+            Ok(true)
         }
         CmdArg::ListIndex => {
             println!("{}", index);
-            return Ok(true);
+            Ok(true)
         }
         CmdArg::Search => {
             if search.update || search.rebuild_index {
                 index.update(search.rebuild_index)?;
             }
             if let Some(query) = conf.query {
-                let query_parser = QueryParser::for_index(&index.index(), vec![*index.contents()]);
+                let query_parser = QueryParser::for_index(index.index(), vec![*index.contents()]);
                 let query = query_parser.parse_query(&query)?;
                 let opts = &search.to_opts(&conf.search_dir);
-                let results = index.search(&query, &opts)?;
-                return output::print_results(results, &search);
+                let results = index.search(&query, opts)?;
+                output::print_results(results, &search)
             } else {
-                return Ok(true);
+                Ok(true)
             }
         }
     }
@@ -116,7 +114,7 @@ fn run_cmd() -> Result<bool, anyhow::Error> {
 /// named indexes can coexist for the same directory.
 fn find_index_dir(for_dir: &Path, index_name: Option<&str>) -> Result<PathBuf, anyhow::Error> {
     let mut cache_home = env::var("XDG_CACHE_HOME").unwrap_or("".to_string());
-    if cache_home == "" {
+    if cache_home.is_empty() {
         cache_home = env::var("HOME")? + "/.cache";
     }
     let mut index_root = PathBuf::from(cache_home);
@@ -130,7 +128,7 @@ fn find_index_dir(for_dir: &Path, index_name: Option<&str>) -> Result<PathBuf, a
     if let Some(name) = index_name {
         index_root.push(format!("__index_{}", name));
     }
-    return Ok(index_root);
+    Ok(index_root)
 }
 
 /// Strip the filesystem root from a path so it can be used as a cache subdirectory.

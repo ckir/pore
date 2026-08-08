@@ -195,7 +195,7 @@ impl GenericIndex {
         let id_name = id_field_entry.name();
         let document_ids = documents
             .iter()
-            .map(|d| d.get_field(id_name).unwrap().to_owned());
+            .map(|d| d.get_field(id_name).unwrap().into_owned());
         self.delete_documents(document_ids)?;
         self.add_documents(documents)
     }
@@ -232,7 +232,7 @@ impl GenericIndex {
     /// Returns results sorted by score, limited by [`SearchOptions::limit`].
     pub fn search(
         &self,
-        query: &Box<dyn Query>,
+        query: &dyn Query,
         opts: &SearchOptions,
     ) -> anyhow::Result<Vec<SearchResult>> {
         let reader = self
@@ -247,7 +247,12 @@ impl GenericIndex {
         for (score, doc_address) in top_docs {
             if score > opts.threshold {
                 let doc: tantivy::TantivyDocument = searcher.doc(doc_address)?;
-                let id = doc.get_first(id_field).unwrap().as_str().unwrap().to_string();
+                let id = doc
+                    .get_first(id_field)
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_string();
                 results.push(SearchResult { id, score });
             }
         }
@@ -275,7 +280,10 @@ mod tests {
 
     #[test]
     fn search_result_serialization() {
-        let result = SearchResult { id: "doc1".to_string(), score: 0.5 };
+        let result = SearchResult {
+            id: "doc1".to_string(),
+            score: 0.5,
+        };
         let json = serde_json::to_string(&result).unwrap();
         assert!(json.contains("doc1"));
         assert!(json.contains("0.5"));

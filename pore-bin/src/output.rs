@@ -42,14 +42,13 @@ pub fn print_results(
                 stdout.set_color(&default_color)?;
                 writeln!(&mut stdout, ":{}", line.text)?;
             }
-            if !conf.filename_only {
-                if i < results.len() - 1 {
-                    println!("");
+            if !conf.filename_only
+                && i < results.len() - 1 {
+                    println!();
                 }
-            }
         }
     }
-    Ok(results.len() > 0)
+    Ok(!results.is_empty())
 }
 
 #[cfg(test)]

@@ -258,10 +258,8 @@ mod tests {
         index.clone().update(false).unwrap();
 
         // Test search
-        let query_parser = tantivy::query::QueryParser::for_index(
-            index.index(),
-            vec![*index.contents()],
-        );
+        let query_parser =
+            tantivy::query::QueryParser::for_index(index.index(), vec![*index.contents()]);
         let query = query_parser.parse_query("pore").unwrap();
         let results = index.search(&query, &FileSearchOptions::default()).unwrap();
         assert_eq!(results.len(), 1);
@@ -302,10 +300,8 @@ mod tests {
     #[test]
     fn file_search_options_shape_from_lua_table() {
         let lua = Lua::new();
-        let opts: FileSearchOptionsShape = lua
-            .load("{ limit = 5, threshold = 0.3 }")
-            .eval()
-            .unwrap();
+        let opts: FileSearchOptionsShape =
+            lua.load("{ limit = 5, threshold = 0.3 }").eval().unwrap();
         assert_eq!(opts.limit, Some(5));
         assert_eq!(opts.threshold, Some(0.3));
         assert_eq!(opts.filename_only, None);
@@ -323,7 +319,10 @@ mod tests {
     fn index_options_shape_from_lua_table() {
         let lua = Lua::new();
         let opts: IndexOptionsShape = lua.load("{ language = 'english' }").eval().unwrap();
-        assert_eq!(opts.language, Some(pore_core::language::LanguageRef::English));
+        assert_eq!(
+            opts.language,
+            Some(pore_core::language::LanguageRef::English)
+        );
     }
 
     #[test]

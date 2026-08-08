@@ -60,9 +60,9 @@ pub enum LanguageRef {
 }
 
 /// Converts this [`LanguageRef`] into the corresponding Tantivy [`Language`].
-impl Into<Language> for LanguageRef {
-    fn into(self) -> Language {
-        match self {
+impl From<LanguageRef> for Language {
+    fn from(val: LanguageRef) -> Self {
+        match val {
             LanguageRef::Arabic => Language::Arabic,
             LanguageRef::Danish => Language::Danish,
             LanguageRef::Dutch => Language::Dutch,
@@ -130,7 +130,7 @@ impl FromStr for LanguageRef {
 /// produce an error.
 impl mlua::FromLua for LanguageRef {
     fn from_lua(value: mlua::Value, _lua: &mlua::Lua) -> mlua::Result<Self> {
-        return match &value {
+        match &value {
             mlua::Value::String(str) => LanguageRef::from_str(&str.to_str()?).map_err(|e| {
                 mlua::Error::FromLuaConversionError {
                     from: "string",
@@ -143,7 +143,7 @@ impl mlua::FromLua for LanguageRef {
                 to: "Language".to_string(),
                 message: Some("Value is not a string".to_string()),
             }),
-        };
+        }
     }
 }
 
@@ -154,44 +154,122 @@ mod tests {
 
     #[test]
     fn all_variants_serialize_to_snake_case() {
-        assert_eq!(serde_json::to_string(&LanguageRef::Arabic).unwrap(), "\"arabic\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Danish).unwrap(), "\"danish\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Dutch).unwrap(), "\"dutch\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::English).unwrap(), "\"english\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Finnish).unwrap(), "\"finnish\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::French).unwrap(), "\"french\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::German).unwrap(), "\"german\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Greek).unwrap(), "\"greek\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Hungarian).unwrap(), "\"hungarian\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Italian).unwrap(), "\"italian\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Norwegian).unwrap(), "\"norwegian\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Portuguese).unwrap(), "\"portuguese\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Romanian).unwrap(), "\"romanian\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Russian).unwrap(), "\"russian\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Spanish).unwrap(), "\"spanish\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Swedish).unwrap(), "\"swedish\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Tamil).unwrap(), "\"tamil\"");
-        assert_eq!(serde_json::to_string(&LanguageRef::Turkish).unwrap(), "\"turkish\"");
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Arabic).unwrap(),
+            "\"arabic\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Danish).unwrap(),
+            "\"danish\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Dutch).unwrap(),
+            "\"dutch\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::English).unwrap(),
+            "\"english\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Finnish).unwrap(),
+            "\"finnish\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::French).unwrap(),
+            "\"french\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::German).unwrap(),
+            "\"german\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Greek).unwrap(),
+            "\"greek\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Hungarian).unwrap(),
+            "\"hungarian\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Italian).unwrap(),
+            "\"italian\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Norwegian).unwrap(),
+            "\"norwegian\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Portuguese).unwrap(),
+            "\"portuguese\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Romanian).unwrap(),
+            "\"romanian\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Russian).unwrap(),
+            "\"russian\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Spanish).unwrap(),
+            "\"spanish\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Swedish).unwrap(),
+            "\"swedish\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Tamil).unwrap(),
+            "\"tamil\""
+        );
+        assert_eq!(
+            serde_json::to_string(&LanguageRef::Turkish).unwrap(),
+            "\"turkish\""
+        );
     }
 
     #[test]
     fn all_variants_deserialize_from_snake_case() {
-        assert_eq!(serde_json::from_str::<LanguageRef>("\"arabic\"").unwrap(), LanguageRef::Arabic);
-        assert_eq!(serde_json::from_str::<LanguageRef>("\"english\"").unwrap(), LanguageRef::English);
-        assert_eq!(serde_json::from_str::<LanguageRef>("\"turkish\"").unwrap(), LanguageRef::Turkish);
+        assert_eq!(
+            serde_json::from_str::<LanguageRef>("\"arabic\"").unwrap(),
+            LanguageRef::Arabic
+        );
+        assert_eq!(
+            serde_json::from_str::<LanguageRef>("\"english\"").unwrap(),
+            LanguageRef::English
+        );
+        assert_eq!(
+            serde_json::from_str::<LanguageRef>("\"turkish\"").unwrap(),
+            LanguageRef::Turkish
+        );
     }
 
     #[test]
     fn from_str_accepts_lowercase() {
-        assert_eq!(LanguageRef::from_str("english").unwrap(), LanguageRef::English);
-        assert_eq!(LanguageRef::from_str("arabic").unwrap(), LanguageRef::Arabic);
+        assert_eq!(
+            LanguageRef::from_str("english").unwrap(),
+            LanguageRef::English
+        );
+        assert_eq!(
+            LanguageRef::from_str("arabic").unwrap(),
+            LanguageRef::Arabic
+        );
     }
 
     #[test]
     fn from_str_accepts_mixed_case() {
-        assert_eq!(LanguageRef::from_str("English").unwrap(), LanguageRef::English);
-        assert_eq!(LanguageRef::from_str("ENGLISH").unwrap(), LanguageRef::English);
-        assert_eq!(LanguageRef::from_str("German").unwrap(), LanguageRef::German);
+        assert_eq!(
+            LanguageRef::from_str("English").unwrap(),
+            LanguageRef::English
+        );
+        assert_eq!(
+            LanguageRef::from_str("ENGLISH").unwrap(),
+            LanguageRef::English
+        );
+        assert_eq!(
+            LanguageRef::from_str("German").unwrap(),
+            LanguageRef::German
+        );
     }
 
     #[test]

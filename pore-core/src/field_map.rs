@@ -18,11 +18,11 @@ use std::{borrow::Cow, collections::HashMap};
 /// Returns an error if the field is missing or not a string.
 pub trait FieldMap {
     /// Returns the value of the field with the given key.
-    fn get_field(&self, key: &str) -> anyhow::Result<Cow<str>>;
+    fn get_field(&self, key: &str) -> anyhow::Result<Cow<'_, str>>;
 }
 
 impl FieldMap for HashMap<String, String> {
-    fn get_field(&self, key: &str) -> anyhow::Result<Cow<str>> {
+    fn get_field(&self, key: &str) -> anyhow::Result<Cow<'_, str>> {
         self.get(key)
             .map(|s| Cow::Borrowed(s.as_str()))
             .ok_or_else(|| anyhow!("Missing field {}", key))
@@ -30,9 +30,9 @@ impl FieldMap for HashMap<String, String> {
 }
 
 impl FieldMap for mlua::Table {
-    fn get_field(&self, key: &str) -> anyhow::Result<Cow<str>> {
+    fn get_field(&self, key: &str) -> anyhow::Result<Cow<'_, str>> {
         self.get::<String>(key)
-            .map(|s| Cow::Owned(s))
+            .map(Cow::Owned)
             .map_err(|e| anyhow!("{}", e))
     }
 }

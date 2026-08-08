@@ -20,8 +20,8 @@ use std::{
 };
 
 use tantivy::{
-    postings::Postings,
-    query::Query, schema::IndexRecordOption, DocAddress, DocSet, Searcher, TERMINATED,
+    postings::Postings, query::Query, schema::IndexRecordOption, DocAddress, DocSet, Searcher,
+    TERMINATED,
 };
 
 use crate::{FileIndex, Line};
@@ -52,9 +52,9 @@ pub struct DocResult {
 /// initial query execution.
 pub fn get_search_results(
     index: &FileIndex,
-    query: &Box<dyn Query>,
+    query: &dyn Query,
     searcher: &Searcher,
-    results: &Vec<DocResult>,
+    results: &[DocResult],
 ) -> Result<HashMap<DocAddress, BytePositions>, anyhow::Error> {
     let mut position_map: HashMap<DocAddress, BytePositions> = HashMap::new();
     for result in results {
@@ -125,7 +125,7 @@ pub fn positions_to_lines(
             let mut line_tokens = 0;
             {
                 let mut token_stream = tokenizer.token_stream(&line);
-                while let Some(_) = token_stream.next() {
+                while token_stream.next().is_some() {
                     line_tokens += 1;
                 }
             }
