@@ -1,3 +1,21 @@
+//! Configuration file loading and option merging.
+//!
+//! This module handles loading the TOML config file from `$XDG_CONFIG_HOME/pore.toml`
+//! (falling back to `$HOME/.config/pore.toml`) and merging options from three sources:
+//!
+//! 1. **Global defaults** — hardcoded `Default` implementations.
+//! 2. **Config file globals** — top-level TOML keys apply to all directories.
+//! 3. **Local config sections** — TOML tables keyed by an arbitrary name that contain a
+//!    `path` field matching the query directory. Local sections may optionally nest an
+//!    index-specific subsection (looked up by `index_name`).
+//!
+//! # Option types
+//!
+//! `SearchConfigOpt` and `FileIndexOptionsShape` are "optional" shapes where every field
+//! is `Option<T>`. They are produced by the `#[create_option_copy]` macro and allow
+//! incremental merging: only explicitly-set CLI flags or config-file keys populate a value,
+//! so defaults from the config file do not accidentally override more specific settings.
+
 use macros::create_option_copy;
 use pore_core::FileIndexOptionsShape;
 use pore_core::FileSearchOptions;
@@ -11,16 +29,29 @@ use toml::Value;
 use crate::color_mode::ColorMode;
 const CONFIG_FILE: &str = "pore.toml";
 
+/// Resolved search configuration with concrete (non-optional) defaults.
+///
+/// All fields have sensible defaults and are populated either from the config file or
+/// from `SearchConfig::default()`. The `#[create_option_copy]` macro generates the
+/// companion `SearchConfigOpt` struct (with `Option<T>` fields) and a `merge_from` method.
 #[create_option_copy(SearchConfigOpt)]
 #[derive(Debug, Deserialize, Clone)]
 pub struct SearchConfig {
+    /// Output results as JSON instead of human-readable text.
     pub json: bool,
+    /// Maximum number of files to return.
     pub limit: usize,
+    /// Minimum relevance score threshold for including a result.
     pub threshold: f32,
+    /// When true, only print matching filenames, not the matching lines.
     pub filename_only: bool,
+    /// Color output mode (auto, always, ansi, never).
     pub color: ColorMode,
+    /// Force a full index rebuild before searching.
     pub rebuild_index: bool,
+    /// Whether to update the index before searching (default: true).
     pub update: bool,
+    /// When true, keep the index in memory only (no disk cache).
     pub in_memory: bool,
 }
 
@@ -40,6 +71,9 @@ impl Default for SearchConfig {
 }
 
 impl SearchConfig {
+    /// Convert search settings into a `FileSearchOptions` for executing a query.
+    ///
+    /// `search_dir` is the subdirectory within the index to restrict results to.
     pub fn to_opts(&self, search_dir: &str) -> FileSearchOptions {
         return FileSearchOptions {
             limit: self.limit,
@@ -50,6 +84,24 @@ impl SearchConfig {
     }
 }
 
+/// Load configuration from the TOML config file and merge with defaults.
+///
+/// The config file is looked up at `$XDG_CONFIG_HOME/pore.toml` or `$HOME/.config/pore.toml`.
+/// If the file does not exist, default options are returned.
+///
+/// # Merging order
+///
+/// 1. Start from global top-level TOML keys.
+/// 2. Find a local config section whose `path` matches `path`. Merge it.
+/// 3. If `index_name` is provided, look for a matching subsection within the local config
+///    (e.g. `[local-1.my_index]`). Merge it.
+/// 4. If `index_name` is provided but no local section matched, look for a global named
+///    index (`[index-<name>]`). Merge it.
+///
+/// # Errors
+///
+/// Returns an error if the config file exists but cannot be parsed, or if `index_name`
+/// is specified but no matching index configuration is found.
 pub fn load_config(
     path: &Path,
     index_name: Option<&str>,

@@ -1,3 +1,9 @@
+//! Result output formatting.
+//!
+//! This module provides [`print_results`], which formats and prints search results
+//! to stdout. Results can be emitted as JSON or as human-readable text with colored
+//! filenames and line numbers.
+
 use std::io::Write;
 
 use pore_core::FileSearchResult;
@@ -5,7 +11,13 @@ use termcolor::{Color, ColorSpec, StandardStream, WriteColor};
 
 use crate::config::SearchConfig;
 
-/// Prints the search results to stdout
+/// Prints the search results to stdout.
+///
+/// When `conf.json` is true, each result is serialized as a JSON object (one per line).
+/// Otherwise, results are printed as human-readable text with colored filenames (magenta)
+/// and line numbers (green).
+///
+/// Returns `Ok(true)` if at least one result was printed, `Ok(false)` otherwise.
 pub fn print_results(
     results: Vec<FileSearchResult>,
     conf: &SearchConfig,
@@ -38,4 +50,49 @@ pub fn print_results(
         }
     }
     Ok(results.len() > 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pore_core::{FileSearchResult, Line};
+    use std::path::PathBuf;
+
+    #[test]
+    fn print_results_json_format() {
+        let results = vec![FileSearchResult::new(
+            PathBuf::from("test.txt"),
+            0.5,
+            vec![Line {
+                number: 1,
+                text: "hello".to_string(),
+            }],
+        )];
+        let conf = SearchConfig {
+            json: true,
+            color: ColorMode::Never,
+            ..SearchConfig::default()
+        };
+        let result = print_results(results, &conf);
+        assert!(result.unwrap());
+    }
+
+    #[test]
+    fn print_results_empty_returns_false() {
+        let conf = SearchConfig::default();
+        let result = print_results(vec![], &conf);
+        assert!(!result.unwrap());
+    }
+
+    #[test]
+    fn print_results_non_empty_returns_true() {
+        let results = vec![FileSearchResult::new(
+            PathBuf::from("test.txt"),
+            0.5,
+            vec![],
+        )];
+        let conf = SearchConfig::default();
+        let result = print_results(results, &conf);
+        assert!(result.unwrap());
+    }
 }

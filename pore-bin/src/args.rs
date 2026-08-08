@@ -1,3 +1,20 @@
+//! CLI argument parsing for the `pore` binary.
+//!
+//! This module defines the [`GlobalConfig`] struct that holds the fully-resolved
+//! configuration after merging CLI flags, and the [`parse_args`] function that builds
+//! it using `clap`.
+//!
+//! # Argument groups
+//!
+//! Arguments are split into two conceptual groups:
+//! - **Index options** — control which files are indexed and how (hidden files, symlinks,
+//!   languages, globs, threading). These conflict with `--index` because a named index
+//!   carries its own settings from the config file.
+//! - **Search options** — control query behavior (limit, threshold, output format, colors).
+//!
+//! Four mutually exclusive commands are available via flag groups:
+//! `--files`, `--indexes`, `--delete`, or a plain search (default).
+
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{env, fs};
@@ -10,25 +27,51 @@ use pore_core::FileIndexOptionsShape;
 use crate::color_mode::ColorMode;
 use crate::config::SearchConfigOpt;
 
+/// The command to execute after configuration is resolved.
 #[derive(Debug)]
 pub enum CmdArg {
+    /// Execute a search query.
     Search,
+    /// Print the files that would be searched, then exit.
     ListFiles,
+    /// Print index metadata, then exit.
     ListIndex,
+    /// Delete cached index files for the directory.
     Delete,
 }
 
+/// Fully-resolved configuration after parsing CLI arguments and loading the config file.
+///
+/// `index` and `search` contain the options parsed from flags (as `*Shape` option structs
+/// with `Option<T>` fields), which are later merged with defaults and config-file values
+/// before conversion into the final `FileIndexOptions` and [`SearchConfig`](crate::config::SearchConfig).
 #[derive(Debug)]
 pub struct GlobalConfig {
+    /// Index-related options (before merging with config-file defaults).
     pub index: FileIndexOptionsShape,
+    /// Search-related options (before merging with config-file defaults).
     pub search: SearchConfigOpt,
+    /// The command to execute.
     pub command: CmdArg,
+    /// The search query string, if provided.
     pub query: Option<String>,
+    /// The directory to index/search within.
     pub query_path: PathBuf,
+    /// A subdirectory within the index to restrict the search to.
     pub search_dir: String,
+    /// Named index to use (from `--index`), if any.
     pub index_name: Option<String>,
 }
 
+/// Parse command-line arguments and return a [`GlobalConfig`].
+///
+/// This function builds the full clap `Command`, extracts index and search options from
+/// the matches, determines which command to run, and resolves the query path.
+///
+/// # Errors
+///
+/// Returns an error if argument parsing fails (e.g., invalid values for `--threads`,
+/// `--limit`, or `--threshold`), or if path canonicalization fails.
 pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
     let matches = Command::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))

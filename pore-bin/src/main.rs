@@ -1,3 +1,15 @@
+//! The `pore` binary — a command-line interface for indexing and searching code files.
+//!
+//! `pore` is the primary user-facing entry point. It parses CLI arguments, loads optional
+//! TOML configuration, creates or opens a Tantivy-backed file index, and executes one of
+//! four commands: search, list-files, list-index, or delete.
+//!
+//! # Index cache location
+//!
+//! When an on-disk index is used, it is stored under `$XDG_CACHE_HOME/pore/<project-path>/`.
+//! If `XDG_CACHE_HOME` is unset, it falls back to `$HOME/.cache`. Named indexes (via
+//! `--index`) append a `__index_<name>` suffix to allow multiple indexes per directory.
+
 #[macro_use]
 extern crate anyhow;
 
@@ -24,12 +36,17 @@ fn main() {
             process::exit(2);
         }
         Ok(false) => {
+            // Command ran successfully but found no results.
             process::exit(1);
         }
         _ => {}
     }
 }
 
+/// Entry point that parses arguments, loads config, and dispatches the requested command.
+///
+/// Returns `Ok(true)` when results were found, `Ok(false)` when the command succeeded but
+/// produced no results, and `Err` on failure.
 fn run_cmd() -> Result<bool, anyhow::Error> {
     let conf = args::parse_args()?;
     let (mut index_opt, mut search_opt) =
@@ -90,6 +107,13 @@ fn run_cmd() -> Result<bool, anyhow::Error> {
     }
 }
 
+/// Computes the on-disk cache path for the Tantivy index.
+///
+/// The path follows the XDG Base Directory convention:
+/// `$XDG_CACHE_HOME/pore/<for_dir>/` (or `$HOME/.cache/pore/<for_dir>/`).
+///
+/// If `index_name` is provided, a `__index_<name>` segment is appended so that multiple
+/// named indexes can coexist for the same directory.
 fn find_index_dir(for_dir: &Path, index_name: Option<&str>) -> Result<PathBuf, anyhow::Error> {
     let mut cache_home = env::var("XDG_CACHE_HOME").unwrap_or("".to_string());
     if cache_home == "" {
