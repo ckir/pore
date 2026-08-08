@@ -105,10 +105,10 @@ pub fn create_option_copy(
                 }
 
                 // Conversion from Lua value
-                impl<'lua> mlua::FromLua<'lua> for #copy_name {
-                    fn from_lua(lua_value: mlua::Value<'lua>, lua: &'lua mlua::Lua) -> mlua::Result<Self> {
+                impl mlua::FromLua for #copy_name {
+                    fn from_lua(value: mlua::Value, lua: &mlua::Lua) -> mlua::Result<Self> {
                         let mut ret = #copy_name::default();
-                        match lua_value {
+                        match value {
                             mlua::Value::Table(table) => {
                                 #(if table.contains_key("#field_names")? {
                                     ret.#field_names = Some(table.get("#field_names")?);
@@ -117,8 +117,8 @@ pub fn create_option_copy(
                             mlua::Value::Nil => {}
                             _ => {
                                 return Err(mlua::Error::FromLuaConversionError {
-                                    from: lua_value.type_name(),
-                                    to: "#copy_name",
+                                    from: "value",
+                                    to: stringify!(#copy_name).to_string(),
                                     message: Some("Value is not a table".to_string()),
                                 });
                             }

@@ -3,6 +3,7 @@ use chrono::NaiveDateTime;
 use chrono::Utc;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -84,14 +85,15 @@ pub fn create_index<
         }
     }
 
-    let mut tokenizers = HashMap::new();
+    let mut tokenizers: HashMap<String, TextAnalyzer> = HashMap::new();
     let mut get_tokenizer = |lang: Language| {
         let key = format!("stemmer_{:?}", lang);
         if !tokenizers.contains_key(&key) {
-            let tokenizer = TextAnalyzer::from(SimpleTokenizer)
+            let tokenizer = TextAnalyzer::builder(SimpleTokenizer::default())
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
-                .filter(Stemmer::new(lang));
+                .filter(Stemmer::new(lang))
+                .build();
             tokenizers.insert(key.clone(), tokenizer);
         }
         return key;
@@ -142,7 +144,7 @@ pub fn delete_index(index: &Index, cache_dir: Option<&Path>) -> anyhow::Result<b
             if !index_dir.exists() {
                 return Ok(false);
             }
-            let mut index_writer = index.writer(50_000_000)?;
+            let mut index_writer = index.writer::<tantivy::TantivyDocument>(50_000_000)?;
             index_writer.delete_all_documents()?;
             index_writer.commit()?;
             let metafile = index_dir.join(METADATA_FILE);

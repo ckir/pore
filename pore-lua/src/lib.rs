@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use mlua::prelude::*;
-use mlua::{MetaMethod, UserData, UserDataMethods};
+use mlua::{UserData, UserDataMethods};
 use pore_core::{
     FileIndex, FileIndexOptionsShape, FileSearchOptionsShape, GenericIndex, IndexOptionsShape,
     SearchOptionsShape,
@@ -81,7 +81,7 @@ struct FileIndexLua {
 }
 
 impl UserData for FileIndexLua {
-    fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut("update", |_, this, (rebuild,): (Option<bool>,)| {
             this.index
                 .update(rebuild.unwrap_or(false))
@@ -109,7 +109,7 @@ impl UserData for FileIndexLua {
                 Ok(results)
             },
         );
-        methods.add_meta_function(MetaMethod::ToString, |_, this: FileIndexLua| {
+        methods.add_method("__tostring", |_, this: &FileIndexLua, _: ()| {
             Ok(format!("{}", this.index))
         });
     }
@@ -121,7 +121,7 @@ struct GenericIndexLua {
 }
 
 impl UserData for GenericIndexLua {
-    fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut("delete", |_, this, _: ()| {
             this.index
                 .delete()
@@ -167,8 +167,8 @@ impl UserData for GenericIndexLua {
                 Ok(results)
             },
         );
-        methods.add_meta_function(MetaMethod::ToString, |_, this: FileIndexLua| {
-            Ok(format!("{}", this.index))
+        methods.add_method("__tostring", |_, this: &GenericIndexLua, _: ()| {
+            Ok(format!("{:?}", this.index))
         });
     }
 }

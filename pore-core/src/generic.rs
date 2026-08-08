@@ -1,6 +1,6 @@
 use chrono::Utc;
 use macros::create_option_copy;
-use mlua::ToLua;
+use mlua::IntoLua;
 use serde::Deserialize;
 use serde::Serialize;
 use std::fs;
@@ -72,8 +72,8 @@ pub struct SearchResult {
     score: f32,
 }
 
-impl<'lua> ToLua<'lua> for SearchResult {
-    fn to_lua(self, lua: &'lua mlua::Lua) -> mlua::Result<mlua::Value<'lua>> {
+impl IntoLua for SearchResult {
+    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
         let tbl = lua.create_table()?;
         tbl.set("id", self.id)?;
         tbl.set("score", self.score)?;
@@ -132,7 +132,7 @@ impl GenericIndex {
         I: IntoIterator<Item = T>,
         T: Into<String>,
     {
-        let mut index_writer = self.index.writer(50_000_000)?;
+        let mut index_writer = self.index.writer::<tantivy::TantivyDocument>(50_000_000)?;
         let id_field = self.get_id_field()?;
         for id in document_ids {
             index_writer.delete_term(Term::from_field_text(id_field, id.into().as_str()));
@@ -154,15 +154,15 @@ impl GenericIndex {
     }
 
     pub fn add_documents<T: FieldMap>(&mut self, documents: Vec<T>) -> anyhow::Result<()> {
-        let mut index_writer = self.index.writer(50_000_000)?;
+        let mut index_writer = self.index.writer::<tantivy::TantivyDocument>(50_000_000)?;
         let now = Utc::now();
         for document in documents {
-            let mut doc = Document::default();
+            let mut doc = tantivy::TantivyDocument::default();
             for (field, entry) in self.index.schema().fields() {
                 let text = document.get_field(entry.name())?;
-                doc.add(FieldValue::new(field, text.as_ref().into()));
+                doc.add_text(field, text.as_ref());
             }
-            index_writer.add_document(doc);
+            index_writer.add_document(doc)?;
         }
         index_writer.commit()?;
         self.meta.set_last_update(now);
@@ -183,16 +183,16 @@ impl GenericIndex {
         let reader = self
             .index
             .reader_builder()
-            .reload_policy(ReloadPolicy::OnCommit)
+            .reload_policy(ReloadPolicy::OnCommitWithDelay)
             .try_into()?;
         let searcher = reader.searcher();
-        let top_docs = searcher.search(query, &TopDocs::with_limit(opts.limit))?;
+        let top_docs = searcher.search(query, &TopDocs::with_limit(opts.limit).order_by_score())?;
         let id_field = self.get_id_field()?;
         let mut results = Vec::new();
         for (score, doc_address) in top_docs {
             if score > opts.threshold {
-                let doc = searcher.doc(doc_address)?;
-                let id = doc.get_first(id_field).unwrap().text().unwrap().to_string();
+                let doc: tantivy::TantivyDocument = searcher.doc(doc_address)?;
+                let id = doc.get_first(id_field).unwrap().as_str().unwrap().to_string();
                 results.push(SearchResult { id, score });
             }
         }

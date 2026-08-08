@@ -14,7 +14,7 @@ use ignore::overrides::OverrideBuilder;
 use ignore::WalkBuilder;
 use ignore::WalkState;
 use macros::create_option_copy;
-use mlua::ToLua;
+use mlua::IntoLua;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fmt::Display;
@@ -140,8 +140,8 @@ impl FileSearchResult {
     }
 }
 
-impl<'lua> ToLua<'lua> for FileSearchResult {
-    fn to_lua(self, lua: &'lua mlua::Lua) -> mlua::Result<mlua::Value<'lua>> {
+impl IntoLua for FileSearchResult {
+    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
         let tbl = lua.create_table()?;
         tbl.set("file", self.file.to_string_lossy())?;
         tbl.set("score", self.score)?;
@@ -158,8 +158,8 @@ pub struct Line {
     pub text: String,
 }
 
-impl<'lua> ToLua<'lua> for Line {
-    fn to_lua(self, lua: &'lua mlua::Lua) -> mlua::Result<mlua::Value<'lua>> {
+impl IntoLua for Line {
+    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
         let tbl = lua.create_table()?;
         tbl.set("number", self.number)?;
         tbl.set("text", self.text)?;
@@ -263,7 +263,7 @@ impl FileIndex {
     }
 
     pub fn update(&mut self, rebuild: bool) -> Result<&mut Self, anyhow::Error> {
-        let mut index_writer = self.index.writer(50_000_000)?;
+        let mut index_writer = self.index.writer::<tantivy::TantivyDocument>(50_000_000)?;
         let walker = self.get_file_walker()?;
         let now = Utc::now();
         walker.build_parallel().run(|| {
@@ -306,10 +306,10 @@ impl FileIndex {
         let reader = self
             .index
             .reader_builder()
-            .reload_policy(ReloadPolicy::OnCommit)
+            .reload_policy(ReloadPolicy::OnCommitWithDelay)
             .try_into()?;
         let searcher = reader.searcher();
-        let top_docs = searcher.search(query, &TopDocs::with_limit(opts.limit))?;
+        let top_docs = searcher.search(query, &TopDocs::with_limit(opts.limit).order_by_score())?;
         let mut doc_results = Vec::new();
         for (score, doc_address) in top_docs {
             if score > opts.threshold {
@@ -322,8 +322,8 @@ impl FileIndex {
         let mut position_map = location::get_search_results(self, query, &searcher, &doc_results)?;
         let mut results = Vec::new();
         for doc_result in doc_results {
-            let doc = searcher.doc(doc_result.address)?;
-            let filepath = doc.get_first(*self.filepath()).unwrap().text().unwrap();
+            let doc: tantivy::TantivyDocument = searcher.doc(doc_result.address)?;
+            let filepath = doc.get_first(*self.filepath()).unwrap().as_str().unwrap();
             let fullpath = if let Some(root_dir) = opts.root_dir.as_deref() {
                 PathBuf::from(root_dir).join(filepath)
             } else {

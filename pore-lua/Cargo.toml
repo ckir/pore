@@ -4,15 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-mlua = { version = "0.7", features = ["async", "macros", "module"] }
+mlua = { version = "0.12.0", features = ["async", "macros", "module"] }
 pore-core = { path = "../pore-core" }
-tantivy = "0.16.1"
+tantivy = "0.26.1"
 
 [lib]
 crate-type = ["cdylib"]
 
 [features]
-default = ["lua51", "vendored"]
+default = ["lua51"]
 lua54 = ["mlua/lua54"]
 lua53 = ["mlua/lua53"]
 lua52 = ["mlua/lua52"]

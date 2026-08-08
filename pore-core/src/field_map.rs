@@ -12,10 +12,10 @@ impl FieldMap for HashMap<String, String> {
     }
 }
 
-impl FieldMap for mlua::Table<'_> {
+impl FieldMap for mlua::Table {
     fn get_field(&self, key: &str) -> anyhow::Result<Cow<str>> {
-        self.get::<&str, String>(key)
+        self.get::<String>(key)
             .map(|s| Cow::Owned(s))
-            .map_err(|e| anyhow!(e))
+            .map_err(|e| anyhow!("{}", e))
     }
 }

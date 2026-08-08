@@ -3,7 +3,7 @@ use std::str::FromStr;
 use std::{env, fs};
 
 use clap::ArgGroup;
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use pore_core::language::LanguageRef;
 use pore_core::FileIndexOptionsShape;
 
@@ -30,7 +30,7 @@ pub struct GlobalConfig {
 }
 
 pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
-    let matches = App::new(env!("CARGO_PKG_NAME"))
+    let matches = Command::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .author(env!("CARGO_PKG_AUTHORS"))
@@ -39,7 +39,7 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
             Arg::new("index")
                 .short('i')
                 .long("index")
-                .takes_value(true)
+                .num_args(1)
                 .conflicts_with_all(&["in_memory", "no_memory", "hidden", "no_hidden", "follow_links", "no_follow_links", "language", "glob", "oglob", "glob_case_insensitive"])
                 .help("Use the specified index for querying (must be specified in the config file)")
         )
@@ -92,8 +92,7 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
         .arg(
             Arg::new("language")
                 .long("language")
-                .validator(|a| LanguageRef::from_str(&a))
-                .takes_value(true)
+                .value_parser(LanguageRef::from_str)
                 .help("The language to use for parsing files"),
         )
         .arg(
@@ -102,18 +101,14 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
                 .long("glob")
                 .help("Include or exclude files and directories for searching that match the given glob. This always overrides any other ignore logic. Multiple glob flags may be used. Precede a glob with a ! to exclude it.")
                 .value_delimiter(',')
-                .use_delimiter(true)
-                .require_delimiter(true)
-                .multiple_values(true)
+                .num_args(1..)
         )
         .arg(
             Arg::new("oglob")
                 .long("oglob")
                 .help("Only search files that match this glob. Files that do not match any of these globs will be ignored.")
                 .value_delimiter(',')
-                .use_delimiter(true)
-                .require_delimiter(true)
-                .multiple_values(true)
+                .num_args(1..)
         )
         .arg(
             Arg::new("glob_case_insensitive")
@@ -125,8 +120,8 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
             Arg::new("threads")
                 .short('j')
                 .long("threads")
-                .takes_value(true)
-                .validator(|a| a.parse::<usize>().map(|_|()).map_err(|_|"threads must be an unsigned integer".to_string()))
+                .num_args(1)
+                .value_parser(|a: &str| a.parse::<usize>().map_err(|_|"threads must be an unsigned integer".to_string()))
                 .help("The approximate number of threads to use. A value of 0 (which is the default) will choose the thread count using heuristics.")
         )
         .arg(
@@ -139,15 +134,15 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
         .arg(
             Arg::new("limit")
                 .long("limit")
-                .takes_value(true)
-                .validator(|a| a.parse::<usize>().map(|_|()).map_err(|_|"limit must be an unsigned integer".to_string()))
+                .num_args(1)
+                .value_parser(|a: &str| a.parse::<usize>().map_err(|_|"limit must be an unsigned integer".to_string()))
                 .help("Maximum number of files to return"),
         )
         .arg(
             Arg::new("threshold")
                 .long("threshold")
-                .takes_value(true)
-                .validator(|a| a.parse::<f32>().map(|_|()).map_err(|_|"threshold must be a floating point number".to_string()))
+                .num_args(1)
+                .value_parser(|a: &str| a.parse::<f32>().map_err(|_|"threshold must be a floating point number".to_string()))
                 .help("Minimum score threshold for results"),
         )
         .arg(
@@ -171,8 +166,8 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
         .arg(
             Arg::new("color")
                 .long("color")
-                .takes_value(true)
-                .possible_values(&["never", "auto", "always", "ansi"])
+                .num_args(1)
+                .value_parser(["never", "auto", "always", "ansi"])
                 .hide_possible_values(true)
                 .help("This flag controls when to use colors. The default setting is auto, which will try to guess when to use colors.")
                 .long_help("This flag controls when to use colors. The default setting is auto, which will try to guess when to use colors.
@@ -208,92 +203,75 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
 
     let mut index = FileIndexOptionsShape::default();
     // Parse index options
-    if matches.is_present("hidden") {
+    if matches.contains_id("hidden") && matches.get_flag("hidden") {
         index.hidden = Some(true);
-    } else if matches.is_present("no_hidden") {
+    } else if matches.contains_id("no_hidden") && matches.get_flag("no_hidden") {
         index.hidden = Some(false);
     }
-    if matches.is_present("language") {
-        index.language = Some(LanguageRef::from_str(
-            matches.value_of("language").unwrap(),
-        )?);
+    if let Some(lang) = matches.get_one::<LanguageRef>("language") {
+        index.language = Some(*lang);
     }
-    if matches.is_present("follow_links") {
+    if matches.contains_id("follow_links") && matches.get_flag("follow_links") {
         index.follow = Some(true);
-    } else if matches.is_present("no_follow_links") {
+    } else if matches.contains_id("no_follow_links") && matches.get_flag("no_follow_links") {
         index.follow = Some(false);
     }
-    if matches.is_present("no_ignore") {
+    if matches.contains_id("no_ignore") && matches.get_flag("no_ignore") {
         index.ignore_files = Some(false);
     }
-    if matches.is_present("glob_case_insensitive") {
+    if matches.contains_id("glob_case_insensitive") && matches.get_flag("glob_case_insensitive") {
         index.glob_case_insensitive = Some(true);
     }
-    if matches.is_present("glob") {
-        index.glob = Some(
-            matches
-                .values_of("glob")
-                .unwrap()
-                .into_iter()
-                .map(|s| s.to_string())
-                .collect(),
-        );
+    if let Some(globs) = matches.get_many::<String>("glob") {
+        index.glob = Some(globs.map(|s| s.to_string()).collect());
     }
-    if matches.is_present("oglob") {
-        index.oglob = Some(
-            matches
-                .values_of("oglob")
-                .unwrap()
-                .into_iter()
-                .map(|s| s.to_string())
-                .collect(),
-        );
+    if let Some(globs) = matches.get_many::<String>("oglob") {
+        index.oglob = Some(globs.map(|s| s.to_string()).collect());
     }
-    if matches.is_present("threads") {
-        index.threads = Some(matches.value_of("threads").unwrap().parse::<usize>()?);
+    if let Some(threads) = matches.get_one::<usize>("threads") {
+        index.threads = Some(*threads);
     }
 
     // Parse search options
     let mut search = SearchConfigOpt::default();
-    if matches.is_present("json") {
+    if matches.contains_id("json") && matches.get_flag("json") {
         search.json = Some(true);
     }
-    if matches.is_present("limit") {
-        search.limit = Some(matches.value_of("limit").unwrap().parse::<usize>()?);
+    if let Some(limit) = matches.get_one::<usize>("limit") {
+        search.limit = Some(*limit);
     }
-    if matches.is_present("threshold") {
-        search.threshold = Some(matches.value_of("threshold").unwrap().parse::<f32>()?);
+    if let Some(threshold) = matches.get_one::<f32>("threshold") {
+        search.threshold = Some(*threshold);
     }
-    if matches.is_present("files_with_matches") {
+    if matches.contains_id("files_with_matches") && matches.get_flag("files_with_matches") {
         search.filename_only = Some(true);
     }
-    if matches.is_present("color") {
-        let preference = matches.value_of("color").unwrap_or("auto");
-        search.color = Some(ColorMode::from_str(preference).unwrap());
+    if let Some(color) = matches.get_one::<String>("color") {
+        search.color = Some(ColorMode::from_str(color).unwrap());
     }
-    if matches.is_present("rebuild_index") {
+    if matches.contains_id("rebuild_index") && matches.get_flag("rebuild_index") {
         search.rebuild_index = Some(true);
     }
-    if matches.is_present("no_update") {
+    if matches.contains_id("no_update") && matches.get_flag("no_update") {
         search.update = Some(false);
-    } else if matches.is_present("update") {
+    } else if matches.contains_id("update") && matches.get_flag("update") {
         search.update = Some(true);
     };
-    if matches.is_present("in_memory") {
+    if matches.contains_id("in_memory") && matches.get_flag("in_memory") {
         search.in_memory = Some(true);
-    } else if matches.is_present("no_memory") {
+    } else if matches.contains_id("no_memory") && matches.get_flag("no_memory") {
         search.in_memory = Some(false);
     }
 
     let mut command = CmdArg::Search;
-    if matches.is_present("delete") {
+    if matches.contains_id("delete") && matches.get_flag("delete") {
         command = CmdArg::Delete;
-    } else if matches.is_present("files") {
+    } else if matches.contains_id("files") && matches.get_flag("files") {
         command = CmdArg::ListFiles;
-    } else if matches.is_present("indexes") {
+    } else if matches.contains_id("indexes") && matches.get_flag("indexes") {
         command = CmdArg::ListIndex;
     }
-    let search_dir = matches.value_of("dir").unwrap_or("").to_string();
+    let search_dir = matches.get_one::<String>("dir").cloned().unwrap_or_default();
     let query_path = if search_dir.is_empty() {
         env::current_dir()?
     } else {
@@ -304,9 +282,9 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
         index,
         search,
         command,
-        query: matches.value_of("query").map(|s| s.to_string()),
+        query: matches.get_one::<String>("query").cloned(),
         query_path,
         search_dir,
-        index_name: matches.value_of("index").map(|s| s.to_string()),
+        index_name: matches.get_one::<String>("index").cloned(),
     });
 }

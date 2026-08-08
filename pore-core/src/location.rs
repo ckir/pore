@@ -1,14 +1,14 @@
 use std::{
     cmp::Reverse,
-    collections::{BTreeMap, BinaryHeap, HashMap},
+    collections::{BinaryHeap, HashMap},
     fs::File,
     io::{self, BufRead},
     path::Path,
 };
 
 use tantivy::{
-    query::Query, schema::IndexRecordOption, DocAddress, DocSet, LeasedItem, Postings, Searcher,
-    TERMINATED,
+    postings::Postings,
+    query::Query, schema::IndexRecordOption, DocAddress, DocSet, Searcher, TERMINATED,
 };
 
 use crate::{FileIndex, Line};
@@ -36,22 +36,22 @@ pub struct DocResult {
 pub fn get_search_results(
     index: &FileIndex,
     query: &Box<dyn Query>,
-    searcher: &LeasedItem<Searcher>,
+    searcher: &Searcher,
     results: &Vec<DocResult>,
 ) -> Result<HashMap<DocAddress, BytePositions>, anyhow::Error> {
     let mut position_map: HashMap<DocAddress, BytePositions> = HashMap::new();
     for result in results {
         position_map.insert(result.address, BinaryHeap::new());
     }
-    let mut terms = BTreeMap::new();
-    query.query_terms(&mut terms);
+    let mut terms = Vec::new();
+    query.query_terms(&mut |term, _| terms.push(term.clone()));
     // this buffer will be used to request for positions
     let mut positions: Vec<u32> = Vec::with_capacity(100);
     for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
         let inverted_index = segment_reader.inverted_index(*index.contents())?;
-        for term in terms.keys() {
+        for term in &terms {
             if let Some(mut segment_postings) =
-                inverted_index.read_postings(&term, IndexRecordOption::WithFreqsAndPositions)?
+                inverted_index.read_postings(term, IndexRecordOption::WithFreqsAndPositions)?
             {
                 let mut doc_id = segment_postings.doc();
                 while doc_id != TERMINATED {
@@ -62,7 +62,7 @@ pub fn get_search_results(
                     }
 
                     if let Some(position_data) = position_map.get_mut(&DocAddress {
-                        segment_ord: segment_ord.try_into()?,
+                        segment_ord: segment_ord as u32,
                         doc_id,
                     }) {
                         segment_postings.positions(&mut positions);
@@ -95,7 +95,7 @@ pub fn positions_to_lines(
     positions: &mut BytePositions,
     lines: &mut Vec<Line>,
 ) -> Result<(), anyhow::Error> {
-    let tokenizer = index.index().tokenizer_for_field(*index.contents())?;
+    let mut tokenizer = index.index().tokenizer_for_field(*index.contents())?;
     if let Some(Reverse(mut next_pos)) = positions.peek() {
         let file = File::open(filepath)?;
         let mut reader = io::BufReader::new(file);

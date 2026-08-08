@@ -79,19 +79,19 @@ impl FromStr for LanguageRef {
     }
 }
 
-impl<'lua> mlua::FromLua<'lua> for LanguageRef {
-    fn from_lua(lua_value: mlua::Value<'lua>, _lua: &'lua mlua::Lua) -> mlua::Result<Self> {
-        return match &lua_value {
-            mlua::Value::String(str) => LanguageRef::from_str(str.to_str()?).map_err(|e| {
+impl mlua::FromLua for LanguageRef {
+    fn from_lua(value: mlua::Value, _lua: &mlua::Lua) -> mlua::Result<Self> {
+        return match &value {
+            mlua::Value::String(str) => LanguageRef::from_str(&str.to_str()?).map_err(|e| {
                 mlua::Error::FromLuaConversionError {
-                    from: lua_value.type_name(),
-                    to: "Language",
+                    from: "string",
+                    to: "Language".to_string(),
                     message: Some(e.to_string()),
                 }
             }),
             _ => Err(mlua::Error::FromLuaConversionError {
-                from: lua_value.type_name(),
-                to: "Language",
+                from: "value",
+                to: "Language".to_string(),
                 message: Some("Value is not a string".to_string()),
             }),
         };
