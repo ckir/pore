@@ -1,3 +1,16 @@
+//! Search result position extraction and line mapping.
+//!
+//! Tantivy stores term positions (token offsets) but not line numbers. This
+//! module bridges that gap:
+//! - [`get_search_results`] performs a second pass over the index to collect
+//!   token positions for matched documents.
+//! - [`positions_to_lines`] reads the original file from disk, re-tokenizes it
+//!   line by line, and maps token positions back to line numbers.
+//!
+//! **Performance note:** [`get_search_results`] is effectively a second full-index
+//! scan. A future optimization would use a custom [`tantivy::Collector`] to track
+//! positions during the initial query.
+
 use std::{
     cmp::Reverse,
     collections::{BinaryHeap, HashMap},
@@ -13,26 +26,30 @@ use tantivy::{
 
 use crate::{FileIndex, Line};
 
+/// Min-heap of token positions (stored in reverse order for efficient popping).
 type BytePositions = BinaryHeap<Reverse<u32>>;
 
+/// Represents a matched document in search results.
 #[derive(Debug)]
 pub struct DocResult {
+    /// Relevance score from the Tantivy query.
     pub score: f32,
+    /// Document address within the index.
     pub address: DocAddress,
 }
 
-/// Get the position data for a query's search terms
+/// Collects token positions for each matched document.
 ///
-/// The only way I've found to do this is to iterate through each of the index segments and look up
-/// the docs for each of the query terms in that segment. For each doc, get the term position data
-/// and save it.
+/// Iterates over all index segments and postings to extract term positions
+/// for the documents in `results`. This is a second full-index scan after the
+/// initial query.
 ///
-/// TODO: this may not work well for FuzzyTermQuery or PhraseQuery. Needs testing.
+/// **Limitations:** May not work correctly with `FuzzyTermQuery` or
+/// `PhraseQuery` — needs testing.
 ///
-/// This effectively amounts to a second full-index scan, doubling the performance cost of the
-/// query (at least). A better way to do this would be to implement a custom Collector (and
-/// possibly Weight and other traits) that keep track of term positions while the search query is
-/// being performed.
+/// **Performance:** This doubles the cost of a search query. A better approach
+/// would be a custom [`tantivy::Collector`] that tracks positions during the
+/// initial query execution.
 pub fn get_search_results(
     index: &FileIndex,
     query: &Box<dyn Query>,
@@ -79,16 +96,15 @@ pub fn get_search_results(
     Ok(position_map)
 }
 
-/// Converts token positions to lines of text
+/// Maps token positions to line numbers and text.
 ///
-/// Tantivy stores position data, but that just means token offsets relative to other tokens in the
-/// file. In order to find the actual lines of text that match a term, we have some work to do. At
-/// the moment this process involves reading the file from disk and then tokenizing it line-by-line
-/// as a means to recover the line-number-to-token-offset mapping.
+/// Tantivy stores token offsets (not line numbers), so this function reads the
+/// original file from disk, re-tokenizes it line by line, and matches token
+/// positions against the accumulated token count to determine which lines
+/// contain matches.
 ///
-/// At some point in the future it might be nice to modify Tantivy to *also* store byte offsets or
-/// line offsets for the terms. It would generate larger indexes, but then we wouldn't have to
-/// retokenize to recover the matched text.
+/// A future Tantivy enhancement could store byte or line offsets alongside
+/// positions, eliminating the need to re-read and re-tokenize files.
 pub fn positions_to_lines(
     index: &FileIndex,
     filepath: &Path,

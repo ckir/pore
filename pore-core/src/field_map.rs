@@ -1,6 +1,23 @@
+//! Abstraction for extracting named text fields from heterogeneous data sources.
+//!
+//! The [`FieldMap`] trait provides a uniform way to read string-valued fields
+//! from different backing stores — currently [`HashMap<String, String>`] and
+//! [`mlua::Table`]. This lets [`GenericIndex`](crate::generic::GenericIndex)
+//! accept documents from either Rust code or Lua scripts without needing
+//! separate indexing paths.
+
 use std::{borrow::Cow, collections::HashMap};
 
+/// Extracts a named text field from a data source.
+///
+/// Implementations return [`Cow::Borrowed`] when the backing store can provide
+/// a reference (e.g., `HashMap`), and [`Cow::Owned`] when a conversion is
+/// required (e.g., Lua table → Rust string).
+///
+/// # Errors
+/// Returns an error if the field is missing or not a string.
 pub trait FieldMap {
+    /// Returns the value of the field with the given key.
     fn get_field(&self, key: &str) -> anyhow::Result<Cow<str>>;
 }
 

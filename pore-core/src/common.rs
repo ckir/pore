@@ -1,3 +1,16 @@
+//! Shared index infrastructure used by both [`FileIndex`](crate::file::FileIndex)
+//! and [`GenericIndex`](crate::generic::GenericIndex).
+//!
+//! This module provides:
+//! - [`IndexMetadata`] and [`Metadata`] — traits and structs for persisting
+//!   index configuration, version, and last-update timestamps.
+//! - [`MetadataConfig`] — a bound requiring index options to declare a stemming
+//!   language.
+//! - [`create_index`] — builds a Tantivy index with language-aware tokenizers,
+//!   optionally loading an existing persisted index from disk.
+//! - [`delete_index`] — clears all documents and removes the on-disk index
+//!   directory.
+
 use chrono::DateTime;
 use chrono::NaiveDateTime;
 use chrono::Utc;
@@ -17,13 +30,26 @@ use tantivy::Index;
 
 use crate::language::LanguageRef;
 
+/// Accessors for index metadata persisted to disk.
+///
+/// Implementations hold version, config, and last-update information.
+/// The generic `T` is the options struct that must implement [`MetadataConfig`].
 pub trait IndexMetadata<T: MetadataConfig + Eq> {
+    /// Returns the stored configuration.
     fn config(&self) -> &T;
+    /// Returns the pore version that created this index.
     fn version(&self) -> &str;
+    /// Returns the timestamp of the last successful index update.
     fn last_update(&self) -> &DateTime<Utc>;
+    /// Updates the last-update timestamp.
     fn set_last_update(&mut self, time: DateTime<Utc>);
 }
 
+/// Standard metadata holder for an index.
+///
+/// Stores the index configuration (`config`), the pore crate version that
+/// created it (`version`), and the time of the last update (`last_update`).
+/// Serialized to `pore_meta.json` alongside the Tantivy index files.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Metadata<T: MetadataConfig + Eq> {
     version: String,
@@ -32,6 +58,10 @@ pub struct Metadata<T: MetadataConfig + Eq> {
 }
 
 impl<T: MetadataConfig + Eq> Metadata<T> {
+    /// Creates new metadata with the current crate version and epoch timestamp.
+    ///
+    /// The epoch (1970-01-01) `last_update` forces the first incremental update
+    /// to treat all files as modified.
     pub fn new(config: T) -> Self {
         Metadata {
             config,
@@ -56,12 +86,42 @@ impl<T: MetadataConfig + Eq> IndexMetadata<T> for Metadata<T> {
     }
 }
 
+/// Requires that an index options struct declares a stemming language.
+///
+/// This lets [`create_index`] build a language-appropriate tokenizer without
+/// needing to know the concrete options type.
 pub trait MetadataConfig {
+    /// Returns the language used for stemming in this index.
     fn language(&self) -> LanguageRef;
 }
 
+/// Filename for the persisted metadata JSON file.
 pub const METADATA_FILE: &str = "pore_meta.json";
 
+/// Creates or opens a Tantivy index with language-aware text tokenizers.
+///
+/// If `cache_dir` is `Some`, the index is persisted to that directory using
+/// memory-mapped files. An existing index is opened; if the stored config
+/// matches the provided one, the previous [`Metadata`] is returned so the
+/// caller can perform incremental updates.
+///
+/// If the on-disk index fails to load (e.g., schema mismatch or corruption),
+/// all files in the directory are deleted and a fresh index is created.
+///
+/// # Tokenization
+/// Each text field gets a tokenizer chain: `SimpleTokenizer → RemoveLongFilter(40)
+/// → LowerCaser → Stemmer(language)`. The tokenizer is registered under a
+/// key like `"stemmer_English"`.
+///
+/// # Parameters
+/// * `cache_dir` — optional directory for persisted index files.
+/// * `config` — index configuration (must implement [`MetadataConfig`]).
+/// * `id_field` — name of the stored identifier field.
+/// * `text_fields` — names of the searchable text fields.
+///
+/// # Returns
+/// A tuple of `(Option<Metadata>, Index)`. The metadata is `Some` only when
+/// an existing persisted index with a matching config was found.
 pub fn create_index<
     T: IndexMetadata<U> + DeserializeOwned,
     U: MetadataConfig + Eq,
@@ -79,6 +139,7 @@ pub fn create_index<
     if metafile.as_deref().map(|p| p.exists()).unwrap_or(false) {
         let meta_res = serde_json::from_str::<T>(&fs::read_to_string(metafile.unwrap())?);
         if let Ok(meta) = meta_res {
+            // Only reuse existing metadata when the config hasn't changed.
             if meta.config() == config {
                 ret_meta = Some(meta);
             }
@@ -86,6 +147,7 @@ pub fn create_index<
     }
 
     let mut tokenizers: HashMap<String, TextAnalyzer> = HashMap::new();
+    // Build (or reuse) a tokenizer for the configured language.
     let mut get_tokenizer = |lang: Language| {
         let key = format!("stemmer_{:?}", lang);
         if !tokenizers.contains_key(&key) {
@@ -137,6 +199,13 @@ pub fn create_index<
     Ok((ret_meta, index))
 }
 
+/// Deletes all documents from an index and removes the on-disk directory.
+///
+/// For in-memory indexes (`cache_dir` is `None`), this is a no-op and returns
+/// `Ok(false)`.
+///
+/// # Returns
+/// `Ok(true)` if the on-disk index was deleted, `Ok(false)` otherwise.
 pub fn delete_index(index: &Index, cache_dir: Option<&Path>) -> anyhow::Result<bool> {
     match cache_dir {
         None => return Ok(false),

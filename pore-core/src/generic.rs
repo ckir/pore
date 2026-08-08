@@ -1,3 +1,17 @@
+//! Generic document indexing for arbitrary text fields.
+//!
+//! Unlike [`FileIndex`](crate::file::FileIndex) which indexes files on disk,
+//! [`GenericIndex`] accepts documents as maps of named text fields (via the
+//! [`FieldMap`](crate::field_map::FieldMap) trait). This makes it suitable for
+//! indexing data from databases, APIs, or any source that can produce
+//! key-value text pairs.
+//!
+//! # Key types
+//! - [`GenericIndex`] — the index handle.
+//! - [`IndexOptions`] — configuration (currently only the stemming language).
+//! - [`SearchOptions`] — limits and thresholds for search queries.
+//! - [`SearchResult`] — a single search result with document ID and score.
+
 use chrono::Utc;
 use macros::create_option_copy;
 use mlua::IntoLua;
@@ -23,6 +37,11 @@ use crate::common::METADATA_FILE;
 use crate::field_map::FieldMap;
 use crate::language::LanguageRef;
 
+/// A generic full-text index for arbitrary documents.
+///
+/// Each document is a map of named text fields (see [`FieldMap`](crate::field_map::FieldMap)).
+/// One field is designated as the stored ID field; all other fields are indexed
+/// as searchable text.
 #[derive(Debug, Clone)]
 pub struct GenericIndex {
     meta: Metadata<IndexOptions>,
@@ -30,10 +49,13 @@ pub struct GenericIndex {
     index: Index,
 }
 
+/// Options controlling search result limits for a [`GenericIndex`] query.
 #[create_option_copy(SearchOptionsShape)]
 #[derive(Debug)]
 pub struct SearchOptions {
+    /// Maximum number of results to return.
     pub limit: usize,
+    /// Minimum score threshold (results below this are excluded).
     pub threshold: f32,
 }
 
@@ -46,9 +68,13 @@ impl Default for SearchOptions {
     }
 }
 
+/// Configuration for a [`GenericIndex`].
+///
+/// Currently only the stemming language is configurable.
 #[create_option_copy(IndexOptionsShape)]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct IndexOptions {
+    /// Language used for stemming.
     pub language: LanguageRef,
 }
 
@@ -66,6 +92,7 @@ impl MetadataConfig for IndexOptions {
     }
 }
 
+/// A single search result from a [`GenericIndex`].
 #[derive(Debug, Serialize)]
 pub struct SearchResult {
     id: String,
@@ -82,13 +109,22 @@ impl IntoLua for SearchResult {
 }
 
 impl GenericIndex {
+    /// Returns a reference to the underlying Tantivy index.
     pub fn index(&self) -> &Index {
         &self.index
     }
+    /// Deletes the index and its on-disk cache (if any).
     pub fn delete(&self) -> anyhow::Result<bool> {
         delete_index(&self.index, self.cache_dir.as_deref())
     }
 
+    /// Opens an existing index or creates a new one.
+    ///
+    /// # Parameters
+    /// * `id_field` — name of the stored document identifier field.
+    /// * `text_fields` — names of the searchable text fields.
+    /// * `config` — indexing options.
+    /// * `cache_dir` — optional path for persisted index files.
     pub fn get_or_create<I, T>(
         id_field: &str,
         text_fields: I,
@@ -108,6 +144,9 @@ impl GenericIndex {
         })
     }
 
+    /// Returns the stored ID field from the schema.
+    ///
+    /// The ID field is identified as the first stored field in the schema.
     fn get_id_field(&self) -> anyhow::Result<Field> {
         for (field, entry) in self.index.schema().fields() {
             if entry.is_stored() {
@@ -117,6 +156,7 @@ impl GenericIndex {
         Err(anyhow!("Could not find stored ID field in index"))
     }
 
+    /// Returns all text (non-stored) fields in the schema.
     pub fn get_text_fields(&self) -> Vec<Field> {
         let mut ret = Vec::new();
         for (field, entry) in self.index.schema().fields() {
@@ -127,6 +167,7 @@ impl GenericIndex {
         ret
     }
 
+    /// Deletes documents with the given IDs from the index.
     pub fn delete_documents<I, T>(&mut self, document_ids: I) -> anyhow::Result<()>
     where
         I: IntoIterator<Item = T>,
@@ -141,6 +182,10 @@ impl GenericIndex {
         Ok(())
     }
 
+    /// Replaces existing documents with updated versions.
+    ///
+    /// Documents are deleted by ID and then re-added. Each document must
+    /// provide its ID via the [`FieldMap`](crate::field_map::FieldMap) trait.
     pub fn update_documents<T: FieldMap>(&mut self, documents: Vec<T>) -> anyhow::Result<()> {
         let id_field = self.get_id_field()?;
         let schema = self.index.schema();
@@ -153,6 +198,11 @@ impl GenericIndex {
         self.add_documents(documents)
     }
 
+    /// Adds documents to the index.
+    ///
+    /// Each document must implement [`FieldMap`](crate::field_map::FieldMap) to
+    /// provide values for all schema fields. The last-update timestamp and
+    /// on-disk metadata file are updated after a successful commit.
     pub fn add_documents<T: FieldMap>(&mut self, documents: Vec<T>) -> anyhow::Result<()> {
         let mut index_writer = self.index.writer::<tantivy::TantivyDocument>(50_000_000)?;
         let now = Utc::now();
@@ -175,6 +225,9 @@ impl GenericIndex {
         Ok(())
     }
 
+    /// Executes a search query against the index.
+    ///
+    /// Returns results sorted by score, limited by [`SearchOptions::limit`].
     pub fn search(
         &self,
         query: &Box<dyn Query>,

@@ -1,31 +1,65 @@
+//! Language support for Tantivy stemmers.
+//!
+//! This module defines [`LanguageRef`], a serializable wrapper around Tantivy's
+//! [`tantivy::tokenizer::Language`] enum. It adds serde (de)serialization and
+//! mlua conversion so that language settings can be configured from config files
+//! and Lua scripts.
+//!
+//! Not all Tantivy languages are exposed — only those that make sense for the
+//! pore use case.
+
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use tantivy::tokenizer::Language;
 
+/// A supported stemming language.
+///
+/// Each variant maps 1:1 to a Tantivy [`Language`]. Serde serializes these to
+/// snake_case (e.g., `LanguageRef::English` → `"english"`), and [`FromStr`]
+/// parsing is case-insensitive.
 #[derive(Debug, Deserialize, Serialize, Copy, Clone, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum LanguageRef {
+    /// Arabic
     Arabic,
+    /// Danish
     Danish,
+    /// Dutch
     Dutch,
+    /// English
     English,
+    /// Finnish
     Finnish,
+    /// French
     French,
+    /// German
     German,
+    /// Greek
     Greek,
+    /// Hungarian
     Hungarian,
+    /// Italian
     Italian,
+    /// Norwegian
     Norwegian,
+    /// Portuguese
     Portuguese,
+    /// Romanian
     Romanian,
+    /// Russian
     Russian,
+    /// Spanish
     Spanish,
+    /// Swedish
     Swedish,
+    /// Tamil
     Tamil,
+    /// Turkish
     Turkish,
 }
 
+/// Converts this [`LanguageRef`] into the corresponding Tantivy [`Language`].
 impl Into<Language> for LanguageRef {
     fn into(self) -> Language {
         match self {
@@ -51,6 +85,17 @@ impl Into<Language> for LanguageRef {
     }
 }
 
+/// Parses a language name from a string (case-insensitive).
+///
+/// # Examples
+/// ```
+/// use std::str::FromStr;
+/// use pore_core::language::LanguageRef;
+///
+/// assert_eq!(LanguageRef::from_str("English").unwrap(), LanguageRef::English);
+/// assert_eq!(LanguageRef::from_str("german").unwrap(), LanguageRef::German);
+/// assert!(LanguageRef::from_str("klingon").is_err());
+/// ```
 impl FromStr for LanguageRef {
     type Err = anyhow::Error;
 
@@ -79,6 +124,10 @@ impl FromStr for LanguageRef {
     }
 }
 
+/// Converts a Lua value to a [`LanguageRef`].
+///
+/// Accepts a Lua string and delegates to [`FromStr`]. Non-string values
+/// produce an error.
 impl mlua::FromLua for LanguageRef {
     fn from_lua(value: mlua::Value, _lua: &mlua::Lua) -> mlua::Result<Self> {
         return match &value {

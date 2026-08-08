@@ -1,3 +1,17 @@
+//! File-based full-text indexing.
+//!
+//! This module provides [`FileIndex`], which indexes the text contents of files
+//! in a directory tree. It uses the `ignore` crate for efficient parallel
+//! directory walking that respects `.gitignore`, `.gitexclude`, and other
+//! ignore files.
+//!
+//! # Key types
+//! - [`FileIndex`] — the index handle, created via [`FileIndex::get_or_create`].
+//! - [`FileIndexOptions`] — configuration for file walking and tokenization.
+//! - [`FileSearchOptions`] — parameters controlling search result limits and format.
+//! - [`FileMetadata`] — persisted metadata about when and how the index was built.
+//! - [`FileSearchResult`] and [`Line`] — search result structures.
+
 use crate::common::create_index;
 use crate::common::delete_index;
 use crate::common::IndexMetadata;
@@ -29,6 +43,10 @@ use tantivy::ReloadPolicy;
 use tantivy::schema::*;
 use tantivy::Index;
 
+/// A file-based full-text index.
+///
+/// Holds a Tantivy [`Index`] along with the schema fields (`filepath`, `contents`)
+/// and metadata about the indexed directory. Created via [`FileIndex::get_or_create`].
 #[derive(Debug, Clone)]
 pub struct FileIndex {
     meta: FileMetadata,
@@ -38,17 +56,32 @@ pub struct FileIndex {
     contents: Field,
 }
 
+/// Configuration options for building a [`FileIndex`].
+///
+/// Controls which files are included, whether to follow symlinks, the stemming
+/// language, and how many threads to use for the directory walker.
+///
+/// The `#[create_option_copy]` macro generates a companion `*Shape` struct and
+/// copy-conversion functions for Lua interop.
 #[create_option_copy(FileIndexOptionsShape)]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct FileIndexOptions {
+    /// Whether to follow symbolic links during file walking.
     pub follow: bool,
+    /// Glob patterns to include files.
     pub glob: Vec<String>,
+    /// Whether glob matching is case-insensitive.
     pub glob_case_insensitive: bool,
+    /// Whether to include hidden files and directories.
     pub hidden: bool,
+    /// Whether to respect .gitignore and similar ignore files.
     pub ignore_files: bool,
+    /// Language used for stemming.
     pub language: LanguageRef,
+    /// Glob patterns to exclude files (takes precedence over `glob`).
     pub oglob: Vec<String>,
-    // TODO move this elsewhere
+    // TODO: move this field to a more appropriate location.
+    /// Number of threads for parallel directory walking (0 = auto).
     pub threads: usize,
 }
 
@@ -67,12 +100,17 @@ impl Default for FileIndexOptions {
     }
 }
 
+/// Options that control search result formatting and limits.
 #[create_option_copy(FileSearchOptionsShape)]
 #[derive(Debug)]
 pub struct FileSearchOptions {
+    /// Maximum number of results to return.
     pub limit: usize,
+    /// Minimum score threshold (results below this are excluded).
     pub threshold: f32,
+    /// When true, only file paths are returned without matching lines.
     pub filename_only: bool,
+    /// Overrides the base directory for resolving file paths.
     pub root_dir: Option<String>,
 }
 
@@ -87,6 +125,10 @@ impl Default for FileSearchOptions {
     }
 }
 
+/// Persisted metadata for a file index.
+///
+/// Tracks the index configuration, version, last update time, and the
+/// directory that was indexed. Serialized to `pore_meta.json`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileMetadata {
     version: String,
@@ -102,6 +144,9 @@ impl MetadataConfig for FileIndexOptions {
 }
 
 impl FileMetadata {
+    /// Creates new metadata for the given directory.
+    ///
+    /// The path is canonicalized to an absolute path.
     pub fn new<P: AsRef<Path>>(
         config: FileIndexOptions,
         for_dir: P,
@@ -120,6 +165,10 @@ impl FileMetadata {
     }
 }
 
+/// A single search result for a file.
+///
+/// Contains the file path, relevance score, and optionally the matching
+/// lines (omitted when [`FileSearchOptions::filename_only`] is true).
 #[derive(Debug, Serialize)]
 pub struct FileSearchResult {
     file: PathBuf,
@@ -129,12 +178,15 @@ pub struct FileSearchResult {
 }
 
 impl FileSearchResult {
+    /// Returns the path to the matched file.
     pub fn file(&self) -> &Path {
         &self.file
     }
+    /// Returns the relevance score.
     pub fn score(&self) -> f32 {
         self.score
     }
+    /// Returns the matching lines in the file (may be empty).
     pub fn lines(&self) -> &Vec<Line> {
         &self.lines
     }
@@ -152,9 +204,12 @@ impl IntoLua for FileSearchResult {
     }
 }
 
+/// A single matching line within a file.
 #[derive(Debug, Serialize)]
 pub struct Line {
+    /// 1-based line number.
     pub number: u32,
+    /// The line text (trailing newline stripped).
     pub text: String,
 }
 
@@ -168,6 +223,7 @@ impl IntoLua for Line {
 }
 
 impl FileMetadata {
+    /// Returns the directory that was indexed.
     pub fn for_dir(&self) -> &Path {
         &self.for_dir
     }
@@ -189,18 +245,31 @@ impl IndexMetadata<FileIndexOptions> for FileMetadata {
 }
 
 impl FileIndex {
+    /// Returns a reference to the underlying Tantivy index.
     pub fn index(&self) -> &Index {
         &self.index
     }
+    /// Returns the schema field for file paths.
     pub fn filepath(&self) -> &Field {
         &self.filepath
     }
+    /// Returns the schema field for file contents.
     pub fn contents(&self) -> &Field {
         &self.contents
     }
+    /// Deletes the index and its on-disk cache (if any).
     pub fn delete(&self) -> anyhow::Result<bool> {
         delete_index(&self.index, self.cache_dir.as_deref())
     }
+    /// Opens an existing index or creates a new one.
+    ///
+    /// If a persisted index exists at `cache_dir` with a matching config, it is
+    /// reused. Otherwise a fresh index is created.
+    ///
+    /// # Parameters
+    /// * `for_dir` — the directory to index.
+    /// * `cache_dir` — optional path for persisted index files.
+    /// * `config` — indexing options.
     pub fn get_or_create<P: AsRef<Path>>(
         for_dir: P,
         cache_dir: Option<P>,
@@ -226,6 +295,10 @@ impl FileIndex {
         })
     }
 
+    /// Returns a configured directory walker for scanning the indexed directory.
+    ///
+    /// The walker respects the index's `.gitignore`, hidden file, glob, and
+    /// symlink-following settings.
     pub fn get_file_walker(&self) -> Result<WalkBuilder, anyhow::Error> {
         let mut builder = WalkBuilder::new(&self.meta.for_dir);
         builder
@@ -262,6 +335,11 @@ impl FileIndex {
         Ok(builder)
     }
 
+    /// Scans the indexed directory and adds/updates documents in the index.
+    ///
+    /// If `rebuild` is true, all readable files are re-indexed regardless of
+    /// their modification time. Otherwise, only files modified since the last
+    /// update are added.
     pub fn update(&mut self, rebuild: bool) -> Result<&mut Self, anyhow::Error> {
         let mut index_writer = self.index.writer::<tantivy::TantivyDocument>(50_000_000)?;
         let walker = self.get_file_walker()?;
@@ -298,6 +376,10 @@ impl FileIndex {
         return Ok(self);
     }
 
+    /// Executes a search query against the file index.
+    ///
+    /// Returns results sorted by relevance, limited by [`FileSearchOptions::limit`],
+    /// with matching line numbers and text when `filename_only` is false.
     pub fn search(
         &self,
         query: &Box<dyn Query>,
@@ -367,5 +449,61 @@ impl Display for FileIndex {
             writeln!(f, "  {}", field.replace(" =", ":"))?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn file_index_options_default() {
+        let opts = FileIndexOptions::default();
+        assert!(!opts.follow);
+        assert!(!opts.hidden);
+        assert!(opts.ignore_files);
+        assert_eq!(opts.language, LanguageRef::English);
+        assert_eq!(opts.threads, 0);
+    }
+
+    #[test]
+    fn file_search_options_default() {
+        let opts = FileSearchOptions::default();
+        assert_eq!(opts.limit, 1000);
+        assert_eq!(opts.threshold, 0.0);
+        assert!(!opts.filename_only);
+        assert!(opts.root_dir.is_none());
+    }
+
+    #[test]
+    fn file_metadata_new() {
+        let tmp = TempDir::new().unwrap();
+        let opts = FileIndexOptions::default();
+        let meta = FileMetadata::new(opts.clone(), tmp.path()).unwrap();
+        assert_eq!(meta.version(), env!("CARGO_PKG_VERSION"));
+        assert_eq!(meta.for_dir(), fs::canonicalize(tmp.path()).unwrap());
+    }
+
+    #[test]
+    fn file_metadata_serialization_round_trip() {
+        let tmp = TempDir::new().unwrap();
+        let opts = FileIndexOptions::default();
+        let meta = FileMetadata::new(opts, tmp.path()).unwrap();
+        let json = serde_json::to_string(&meta).unwrap();
+        let restored: FileMetadata = serde_json::from_str(&json).unwrap();
+        assert_eq!(meta.version, restored.version);
+        assert_eq!(meta.config, restored.config);
+    }
+
+    #[test]
+    fn file_index_display_format() {
+        let tmp = TempDir::new().unwrap();
+        let opts = FileIndexOptions::default();
+        let index = FileIndex::get_or_create(tmp.path(), Some(tmp.path()), &opts).unwrap();
+        let display = format!("{}", index);
+        assert!(display.contains("Index("));
+        assert!(display.contains("version:"));
+        assert!(display.contains("location:"));
     }
 }
