@@ -2,8 +2,8 @@
 //!
 //! This crate builds a `pore_lua` Lua module that can be loaded from Lua via
 //! `require("pore_lua")`. It exports two constructors — `get_file_index` and `get_index` —
-//! which return userdata objects wrapping [`FileIndex`](pore_core::FileIndex) and
-//! [`GenericIndex`](pore_core::GenericIndex) respectively.
+//! which return userdata objects wrapping [`FileIndex`] and
+//! [`GenericIndex`] respectively.
 //!
 //! # Module API
 //!
