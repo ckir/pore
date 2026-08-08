@@ -263,7 +263,6 @@ impl GenericIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
     #[test]
     fn index_options_default() {

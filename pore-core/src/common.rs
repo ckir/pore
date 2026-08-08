@@ -36,10 +36,10 @@ pub trait IndexMetadata<T: MetadataConfig + Eq> {
     /// Returns the stored configuration.
     fn config(&self) -> &T;
     /// Returns the pore version that created this index.
-    #[expect(dead_code)]
+    #[allow(dead_code)]
     fn version(&self) -> &str;
     /// Returns the timestamp of the last successful index update.
-    #[expect(dead_code)]
+    #[allow(dead_code)]
     fn last_update(&self) -> &DateTime<Utc>;
     /// Updates the last-update timestamp.
     fn set_last_update(&mut self, time: DateTime<Utc>);
@@ -284,7 +284,7 @@ mod tests {
         let config = TestConfig {
             language: LanguageRef::English,
         };
-        let (meta_opt, index) = create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
+        let (meta_opt, _index) = create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
             Some(tmp.path()),
             &config,
             "id",

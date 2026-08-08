@@ -148,7 +148,7 @@ fn delete_index_removes_files() {
 
 #[test]
 fn file_walker_respects_hidden_toggle() {
-    let (tmp, mut index) = create_test_file_index(
+    let (_tmp, mut index) = create_test_file_index(
         &[("visible.txt", "visible"), (".hidden.txt", "hidden")],
         FileIndexOptions::default(),
     );

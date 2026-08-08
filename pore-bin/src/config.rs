@@ -199,9 +199,9 @@ limit = 4
         assert_eq!(i1.threads, Some(20));
         assert_eq!(i1.language, None);
         let conf: FileIndexOptions = i1.into();
-        assert_eq!(conf.follow, true);
+        assert!(conf.follow);
         assert_eq!(conf.threads, 20);
-        assert_eq!(conf.hidden, false);
+        assert!(!conf.hidden);
     }
 
     #[test]
@@ -243,7 +243,7 @@ threads = 40
         let example = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("pore.example.toml");
         let contents = &fs::read_to_string(&example).unwrap();
         let value: toml::Value =
-            toml::from_str(contents).expect(&format!("Error parsing config file {:?}", example));
+            toml::from_str(contents).unwrap_or_else(|_| panic!("Error parsing config file {:?}", example));
         let index: FileIndexOptionsShape = value.clone().try_into().unwrap();
         let search: SearchConfigOpt = value.clone().try_into().unwrap();
         if let Err(missing_fields) = index.all() {

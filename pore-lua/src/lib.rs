@@ -25,6 +25,8 @@
 //! The module also exports a `version` table with `full`, `major`, `minor`, `patch`,
 //! and `pre` fields, populated from Cargo package metadata at build time.
 
+#![allow(dead_code, unused_imports)]
+
 use std::path::PathBuf;
 use std::str::FromStr;
 

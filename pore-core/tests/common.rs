@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use pore_core::{FileIndex, FileIndexOptions, GenericIndex, IndexOptions};
 use std::fs;
 use std::path::Path;
