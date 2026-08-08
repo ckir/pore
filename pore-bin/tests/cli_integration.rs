@@ -112,7 +112,11 @@ fn json_output_flag() {
 #[test]
 fn filename_only_flag() {
     let tmp = tempfile::tempdir().unwrap();
-    fs::write(tmp.path().join("test.txt"), "hello world\nline two\nline three").unwrap();
+    fs::write(
+        tmp.path().join("test.txt"),
+        "hello world\nline two\nline three",
+    )
+    .unwrap();
 
     // -l / --files-with-matches prints filenames only, not matching lines
     let (mut cmd, _home) = pore_with_home();
