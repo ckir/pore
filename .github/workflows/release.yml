@@ -104,11 +104,32 @@ jobs:
           path: dist/pore-${{ matrix.target }}.*
           retention-days: 1
 
+  rustdoc:
+    name: rustdoc
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build documentation
+        run: cargo doc --workspace --no-deps
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/doc
+          keep_files: true
+
   release:
     name: release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [quality, build]
+    needs: [quality, build, rustdoc]
     permissions:
       contents: write
     steps:
