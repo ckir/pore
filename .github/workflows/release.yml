@@ -45,7 +45,7 @@ jobs:
   build:
     name: build ${{ matrix.os }} (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
-    needs: quality
+    needs: [quality, version-check]
     strategy:
       fail-fast: false
       matrix:
