@@ -95,8 +95,10 @@ impl MetadataConfig for IndexOptions {
 /// A single search result from a [`GenericIndex`].
 #[derive(Debug, Serialize)]
 pub struct SearchResult {
-    id: String,
-    score: f32,
+    /// The document ID.
+    pub id: String,
+    /// The relevance score.
+    pub score: f32,
 }
 
 impl IntoLua for SearchResult {
@@ -250,5 +252,32 @@ impl GenericIndex {
             }
         }
         Ok(results)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn index_options_default() {
+        let opts = IndexOptions::default();
+        assert_eq!(opts.language, LanguageRef::English);
+    }
+
+    #[test]
+    fn search_options_default() {
+        let opts = SearchOptions::default();
+        assert_eq!(opts.limit, 1000);
+        assert_eq!(opts.threshold, 0.0);
+    }
+
+    #[test]
+    fn search_result_serialization() {
+        let result = SearchResult { id: "doc1".to_string(), score: 0.5 };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("doc1"));
+        assert!(json.contains("0.5"));
     }
 }
