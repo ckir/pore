@@ -35,7 +35,6 @@ Approach B: native builds on latest runners, one target per matrix entry (macOS 
 | `macos-latest` | `x86_64-apple-darwin` | `.tar.gz` + `.sha256` |
 | `macos-latest` | `aarch64-apple-darwin` | `.tar.gz` + `.sha256` |
 | `windows-latest` | `x86_64-pc-windows-msvc` | `.zip` + `.sha256` |
-| `windows-latest` (gnu toolchain) | `x86_64-pc-windows-gnu` | `.zip` + `.sha256` |
 
 ### Archive Contents
 
@@ -59,14 +58,13 @@ Removed: beta/nightly channels, redundant OS test matrix. Format + test on stabl
 ### Release Workflow (`.github/workflows/release.yml`)
 
 **Jobs:**
-- `build` (matrix) — one entry per target triple. Each:
+- `build` (matrix) — 4 entries, one per target triple. Each:
   1. Install Rust stable
-  2. For `x86_64-pc-windows-gnu`: install the target via `rustup` and ensure MinGW-w64 `ld` is on PATH (provided by `msys2` or pre-installed on `windows-latest`)
-  3. For macOS entries: install both `x86_64-apple-darwin` and `aarch64-apple-darwin` targets on the shared macOS runner
-  4. `cargo build --release --target <triple>`
-  5. Package binary + README + LICENSE into archive
-  6. Generate SHA256 checksum
-  7. Upload artifact (retention: 1 day)
+  2. `rustup target add <triple>`
+  3. `cargo build --release --target <triple>`
+  4. Package binary + README + LICENSE into archive (`.tar.gz` for Unix, `.zip` for Windows)
+  5. Generate SHA256 checksum
+  6. Upload artifact (retention: 1 day)
 
 - `release` — depends on all `build` jobs. Only runs on `v*` tag push.
   1. Download all artifacts
