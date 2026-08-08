@@ -19,3 +19,50 @@ impl FieldMap for mlua::Table {
             .map_err(|e| anyhow!("{}", e))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn hashmap_get_existing_field() {
+        let mut map = HashMap::new();
+        map.insert("title".to_string(), "Hello World".to_string());
+        let result = map.get_field("title").unwrap();
+        assert_eq!(result.as_ref(), "Hello World");
+    }
+
+    #[test]
+    fn hashmap_get_missing_field_returns_error() {
+        let map: HashMap<String, String> = HashMap::new();
+        let result = map.get_field("missing");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("missing"));
+    }
+
+    #[test]
+    fn lua_table_get_existing_field() {
+        let lua = mlua::Lua::new();
+        let tbl: mlua::Table = lua.load("{ name = 'test' }").eval().unwrap();
+        let result = tbl.get_field("name").unwrap();
+        assert_eq!(result.as_ref(), "test");
+    }
+
+    #[test]
+    fn lua_table_get_missing_field_returns_error() {
+        let lua = mlua::Lua::new();
+        let tbl: mlua::Table = lua.load("{}").eval().unwrap();
+        let result = tbl.get_field("missing");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn lua_table_non_string_value_returns_error() {
+        let lua = mlua::Lua::new();
+        let tbl: mlua::Table = lua.load("{ nested = {} }").eval().unwrap();
+        let result = tbl.get_field("nested");
+        assert!(result.is_err());
+    }
+}
