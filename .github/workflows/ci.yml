@@ -4,56 +4,34 @@ on:
   push:
     branches:
       - master
+
 jobs:
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
   test:
     name: test
+    runs-on: ubuntu-latest
     env:
       RUST_BACKTRACE: 1
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-20.04
-            rust: stable
-          - os: ubuntu-20.04
-            rust: beta
-          - os: macos-latest
-            rust: nightly
-          - os: windows-2019
-            rust: nightly
-          - os: windows-2019
-            rust: nightly-x86_64-gnu
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          profile: minimal
-          override: true
-
-      - name: Cargo build
-        run: cargo build --verbose
-
-      - name: Run tests
-        if: matrix.target == ''
-        run: cargo test --verbose
-
-  format:
-    name: rustfmt
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          profile: minimal
-          components: rustfmt
-      - name: Check formatting
-        run: |
-          cargo fmt --all -- --check
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --workspace --verbose
