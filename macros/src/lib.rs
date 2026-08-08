@@ -110,8 +110,8 @@ pub fn create_option_copy(
                         let mut ret = #copy_name::default();
                         match value {
                             mlua::Value::Table(table) => {
-                                #(if table.contains_key("#field_names")? {
-                                    ret.#field_names = Some(table.get("#field_names")?);
+                                #(if table.contains_key(stringify!(#field_names))? {
+                                    ret.#field_names = Some(table.get(stringify!(#field_names))?);
                                 })*
                             }
                             mlua::Value::Nil => {}
