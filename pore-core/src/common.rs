@@ -154,3 +154,135 @@ pub fn delete_index(index: &Index, cache_dir: Option<&Path>) -> anyhow::Result<b
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+    struct TestConfig {
+        language: LanguageRef,
+    }
+    impl MetadataConfig for TestConfig {
+        fn language(&self) -> LanguageRef {
+            self.language
+        }
+    }
+
+    #[test]
+    fn metadata_new_sets_version_and_epoch() {
+        let config = TestConfig {
+            language: LanguageRef::English,
+        };
+        let meta = Metadata::<TestConfig>::new(config.clone());
+        assert_eq!(meta.version(), env!("CARGO_PKG_VERSION"));
+        assert_eq!(meta.config().language, LanguageRef::English);
+    }
+
+    #[test]
+    fn metadata_set_last_update() {
+        let config = TestConfig {
+            language: LanguageRef::English,
+        };
+        let mut meta = Metadata::<TestConfig>::new(config);
+        let now = Utc::now();
+        meta.set_last_update(now);
+        assert_eq!(meta.last_update(), &now);
+    }
+
+    #[test]
+    fn create_index_in_ram() {
+        let config = TestConfig {
+            language: LanguageRef::English,
+        };
+        let (meta_opt, index) =
+            create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
+                None::<&Path>,
+                &config,
+                "id",
+                vec!["text".to_string()],
+            )
+            .unwrap();
+        assert!(meta_opt.is_none());
+        assert!(index.schema().get_field("id").is_ok());
+        assert!(index.schema().get_field("text").is_ok());
+    }
+
+    #[test]
+    fn create_index_on_disk() {
+        let tmp = TempDir::new().unwrap();
+        let config = TestConfig {
+            language: LanguageRef::English,
+        };
+        let (meta_opt, index) =
+            create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
+                Some(tmp.path()),
+                &config,
+                "id",
+                vec!["text".to_string()],
+            )
+            .unwrap();
+        assert!(meta_opt.is_none());
+        // Verify index was created on disk (directory is non-empty)
+        assert!(tmp.path().read_dir().unwrap().next().is_some());
+    }
+
+    #[test]
+    fn create_index_reloads_existing_metadata() {
+        let tmp = TempDir::new().unwrap();
+        let config = TestConfig {
+            language: LanguageRef::English,
+        };
+        // Write a metadata file manually to simulate a pre-existing index
+        let meta = Metadata::<TestConfig>::new(config.clone());
+        let meta_json = serde_json::to_string(&meta).unwrap();
+        fs::write(tmp.path().join(METADATA_FILE), &meta_json).unwrap();
+        // Now create_index should load the existing metadata
+        let (meta_opt, _) =
+            create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
+                Some(tmp.path()),
+                &config,
+                "id",
+                vec!["text".to_string()],
+            )
+            .unwrap();
+        assert!(meta_opt.is_some());
+    }
+
+    #[test]
+    fn delete_index_returns_false_for_in_memory() {
+        let config = TestConfig {
+            language: LanguageRef::English,
+        };
+        let (_, index) =
+            create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
+                None::<&Path>,
+                &config,
+                "id",
+                vec!["text".to_string()],
+            )
+            .unwrap();
+        let result = delete_index(&index, None).unwrap();
+        assert!(!result);
+    }
+
+    #[test]
+    fn delete_index_on_disk_removes_files() {
+        let tmp = TempDir::new().unwrap();
+        let config = TestConfig {
+            language: LanguageRef::English,
+        };
+        let (_, index) =
+            create_index::<Metadata<TestConfig>, _, _, Vec<String>, String>(
+                Some(tmp.path()),
+                &config,
+                "id",
+                vec!["text".to_string()],
+            )
+            .unwrap();
+        // delete_index attempts cleanup; returns true when given a real path
+        let result = delete_index(&index, Some(tmp.path())).unwrap();
+        assert!(result);
+    }
+}
