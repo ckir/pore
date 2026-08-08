@@ -1,3 +1,30 @@
+//! Lua bindings for `pore` — exposes Tantivy-backed indexing to Lua scripts.
+//!
+//! This crate builds a `pore_lua` Lua module that can be loaded from Lua via
+//! `require("pore_lua")`. It exports two constructors — `get_file_index` and `get_index` —
+//! which return userdata objects wrapping [`FileIndex`](pore_core::FileIndex) and
+//! [`GenericIndex`](pore_core::GenericIndex) respectively.
+//!
+//! # Module API
+//!
+//! ```lua
+//! -- Create a file index for a directory
+//! local idx = pore.get_file_index("/path/to/dir", "/path/to/cache", {threads = 4})
+//! idx:update()
+//! local results = idx:search("some query", {limit = 10})
+//! idx:delete()
+//!
+//! -- Create a generic index for custom documents
+//! local gidx = pore.get_index("id", {"title", "body"}, {}, "/path/to/cache")
+//! gidx:add_documents({{id = "1", title = "Hello", body = "world"}})
+//! gidx:search("hello", {})
+//! ```
+//!
+//! # Version info
+//!
+//! The module also exports a `version` table with `full`, `major`, `minor`, `patch`,
+//! and `pre` fields, populated from Cargo package metadata at build time.
+
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -9,6 +36,13 @@ use pore_core::{
 };
 use tantivy::query::QueryParser;
 
+/// Entry point for the Lua module. Called when the shared library is loaded via
+/// `require("pore_lua")`.
+///
+/// Returns a Lua table with the following keys:
+/// - `version` — a table with `full`, `major`, `minor`, `patch`, `pre` fields.
+/// - `get_file_index(for_dir, cache_dir, config)` — creates or opens a [`FileIndex`].
+/// - `get_index(id_field, text_fields, config, cache_dir)` — creates or opens a [`GenericIndex`].
 #[mlua::lua_module]
 fn pore_lua(lua: &Lua) -> LuaResult<LuaTable> {
     let exports = lua.create_table()?;
@@ -66,6 +100,7 @@ fn pore_lua(lua: &Lua) -> LuaResult<LuaTable> {
     Ok(exports)
 }
 
+/// Sets a key in a Lua table if the corresponding environment variable is non-empty.
 macro_rules! set_nonempty_env {
     ($tbl:ident, $key:literal, $env_key:literal) => {{
         let value = env!($env_key);
@@ -75,6 +110,9 @@ macro_rules! set_nonempty_env {
     }};
 }
 
+/// Lua userdata wrapping a [`FileIndex`](pore_core::FileIndex).
+///
+/// Provides methods: `update(rebuild?)`, `delete()`, `search(query, opts)`, and `__tostring`.
 #[derive(Debug, Clone)]
 struct FileIndexLua {
     index: FileIndex,
@@ -115,6 +153,10 @@ impl UserData for FileIndexLua {
     }
 }
 
+/// Lua userdata wrapping a [`GenericIndex`](pore_core::GenericIndex).
+///
+/// Provides methods: `delete()`, `delete_documents(doc_ids)`, `update_documents(docs)`,
+/// `add_documents(docs)`, `search(query, opts)`, and `__tostring`.
 #[derive(Debug, Clone)]
 struct GenericIndexLua {
     index: GenericIndex,
@@ -173,6 +215,7 @@ impl UserData for GenericIndexLua {
     }
 }
 
+/// Creates a Lua table with version metadata from Cargo environment variables.
 fn make_version_tbl(lua: &Lua) -> LuaResult<LuaTable> {
     let tbl = lua.create_table()?;
 
