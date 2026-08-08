@@ -55,9 +55,16 @@ def read_section(filename: str, start_pat: str, end_pat: str) -> List[str]:
 def main() -> None:
     """Update the README"""
     lines = subprocess.getoutput("cargo run - --help").splitlines()
-    i = lines.index("USAGE:")
+    # Find the Usage: line (clap v4 uses "Usage:", older versions used "USAGE:")
+    i = None
+    for idx, line in enumerate(lines):
+        if line.startswith("Usage:") or line == "USAGE:":
+            i = idx
+            break
+    if i is None:
+        raise ValueError("Could not find 'Usage:' line in --help output")
     lines = [l.rstrip() + "\n" for l in lines[i + 1 :]]
-    replace_section(README, r"^USAGE", r"^```$", lines)
+    replace_section(README, r"^Usage", r"^```$", lines)
 
 
 if __name__ == "__main__":

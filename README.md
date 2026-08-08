@@ -13,105 +13,99 @@ If you can express what you're looking for as a regular expression or exact text
 string, use ripgrep. If you want something more like a Google search, use pore.
 
 ```
-USAGE:
-    pore [OPTIONS] [--] [ARGS]
+Usage:
 
-ARGS:
-    <query>
-
-
-    <dir>
+Arguments:
+  [query]
 
 
-OPTIONS:
-        --color <color>
-            This flag controls when to use colors. The default setting is auto, which will try to
-            guess when to use colors.
-               The possible values for this flag are:
+  [dir]
 
-                   never    Colors will never be used.
-                   auto     Auto-detect if the terminal supports colors (default).
-                   always   Colors will always be used regardless of where output is sent.
-                   ansi     Like 'always', but emits ANSI escapes (even in a Windows console).
 
-        --delete
-            Delete the cached index files for the directory (if any)
+Options:
+  -i, --index <index>
+          Use the specified index for querying (must be specified in the config file)
 
-        --files
-            Print out the files that would be searched (do not perform the search)
+  -u, --update
+          Update the index before searching (the default)
 
-    -g, --glob <glob>...
-            Include or exclude files and directories for searching that match the given glob. This
-            always overrides any other ignore logic. Multiple glob flags may be used. Precede a glob
-            with a ! to exclude it.
+      --no-update
+          Do not update the index before performing the query
 
-        --glob-case-insensitive
-            Patterns passed to --glob and --oglob will be matched in a case-insentive way.
+      --in-memory
+          Do not store the text index on disk (will have to rebuild every time)
 
-    -h, --help
-            Print help information
+      --no-memory
+          Force the index to be saved to disk (overrides --in-memory)
 
-        --hidden
-            Search hidden files and directories
+      --hidden
+          Search hidden files and directories
 
-    -i, --index <index>
-            Use the specified index for querying (must be specified in the config file)
+      --no-hidden
+          Ignore hidden files and directories (overrides --hidden)
 
-        --in-memory
-            Do not store the text index on disk (will have to rebuild every time)
+  -L, --follow
+          Follow symbolic links
 
-        --indexes
-            print out the indexes that would be used (do not perform the search)
+      --no-follow
+          Don't follow symbolic links (overrides --follow)
 
-    -j, --threads <threads>
-            The approximate number of threads to use. A value of 0 (which is the default) will
-            choose the thread count using heuristics.
+      --language <language>
+          The language to use for parsing files
 
-        --json
-            Print the results as json
+  -g, --glob <glob>...
+          Include or exclude files and directories for searching that match the given glob. This always overrides any other ignore logic. Multiple glob flags may be used. Precede a glob with a ! to exclude it.
 
-    -l, --files-with-matches
-            Print out the files that match the search (not the matching lines).
+      --oglob <oglob>...
+          Only search files that match this glob. Files that do not match any of these globs will be ignored.
 
-    -L, --follow
-            Follow symbolic links
+      --glob-case-insensitive
+          Patterns passed to --glob and --oglob will be matched in a case-insentive way.
 
-        --language <language>
-            The language to use for parsing files
+  -j, --threads <threads>
+          The approximate number of threads to use. A value of 0 (which is the default) will choose the thread count using heuristics.
 
-        --limit <limit>
-            Maximum number of files to return
+      --rebuild
+          Force rebuild the index before searching
 
-        --no-follow
-            Don't follow symbolic links (overrides --follow)
+      --limit <limit>
+          Maximum number of files to return
 
-        --no-hidden
-            Ignore hidden files and directories (overrides --hidden)
+      --threshold <threshold>
+          Minimum score threshold for results
 
-        --no-ignore
-            Don't respect .gitignore files
+      --json
+          Print the results as json
 
-        --no-memory
-            Force the index to be saved to disk (overrides --in-memory)
+  -l, --files-with-matches
+          Print out the files that match the search (not the matching lines).
 
-        --no-update
-            Do not update the index before performing the query
+      --no-ignore
+          Don't respect .gitignore files
 
-        --oglob <oglob>...
-            Only search files that match this glob. Files that do not match any of these globs will
-            be ignored.
+      --color <color>
+          This flag controls when to use colors. The default setting is auto, which will try to guess when to use colors.
+             The possible values for this flag are:
 
-        --rebuild
-            Force rebuild the index before searching
+                 never    Colors will never be used.
+                 auto     Auto-detect if the terminal supports colors (default).
+                 always   Colors will always be used regardless of where output is sent.
+                 ansi     Like 'always', but emits ANSI escapes (even in a Windows console).
 
-        --threshold <threshold>
-            Minimum score threshold for results
+      --files
+          Print out the files that would be searched (do not perform the search)
 
-    -u, --update
-            Update the index before searching (the default)
+      --indexes
+          print out the indexes that would be used (do not perform the search)
 
-    -V, --version
-            Print version information
+      --delete
+          Delete the cached index files for the directory (if any)
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 ## Config
