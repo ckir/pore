@@ -90,33 +90,39 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
             Arg::new("update")
                 .short('u')
                 .long("update")
+                .action(clap::ArgAction::SetTrue)
                 .help("Update the index before searching (the default)"),
         )
         .arg(
             Arg::new("no_update")
                 .long("no-update")
+                .action(clap::ArgAction::SetTrue)
                 .conflicts_with("update")
                 .help("Do not update the index before performing the query"),
         )
         .arg(
             Arg::new("in_memory")
                 .long("in-memory")
+                .action(clap::ArgAction::SetTrue)
                 .help("Do not store the text index on disk (will have to rebuild every time)"),
         )
         .arg(
             Arg::new("no_memory")
                 .long("no-memory")
+                .action(clap::ArgAction::SetTrue)
                 .conflicts_with("in_memory")
                 .help("Force the index to be saved to disk (overrides --in-memory)"),
         )
         .arg(
             Arg::new("hidden")
                 .long("hidden")
+                .action(clap::ArgAction::SetTrue)
                 .help("Search hidden files and directories"),
         )
         .arg(
             Arg::new("no_hidden")
                 .long("no-hidden")
+                .action(clap::ArgAction::SetTrue)
                 .conflicts_with("hidden")
                 .help("Ignore hidden files and directories (overrides --hidden)"),
         )
@@ -124,11 +130,13 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
             Arg::new("follow_links")
                 .short('L')
                 .long("follow")
+                .action(clap::ArgAction::SetTrue)
                 .help("Follow symbolic links"),
         )
         .arg(
             Arg::new("no_follow_links")
                 .long("no-follow")
+                .action(clap::ArgAction::SetTrue)
                 .conflicts_with("follow_links")
                 .help("Don't follow symbolic links (overrides --follow)"),
         )
@@ -156,6 +164,7 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
         .arg(
             Arg::new("glob_case_insensitive")
                 .long("glob-case-insensitive")
+                .action(clap::ArgAction::SetTrue)
                 .help("Patterns passed to --glob and --oglob will be matched in a case-insentive way.")
         )
         // Index args that don't conflict with --index
@@ -170,6 +179,7 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
         .arg(
             Arg::new("rebuild_index")
             .long("rebuild")
+            .action(clap::ArgAction::SetTrue)
             .help("Force rebuild the index before searching")
         )
 
@@ -191,6 +201,7 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
         .arg(
             Arg::new("json")
                 .long("json")
+                .action(clap::ArgAction::SetTrue)
                 .conflicts_with("commands")
                 .help("Print the results as json"),
         )
@@ -198,12 +209,14 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
             Arg::new("files_with_matches")
                 .short('l')
                 .long("files-with-matches")
+                .action(clap::ArgAction::SetTrue)
                 .conflicts_with("commands")
                 .help("Print out the files that match the search (not the matching lines)."),
         )
         .arg(
             Arg::new("no_ignore")
                 .long("no-ignore")
+                .action(clap::ArgAction::SetTrue)
                 .help("Don't respect .gitignore files"),
         )
         .arg(
@@ -228,16 +241,19 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
         .arg(
             Arg::new("files")
                 .long("files")
+                .action(clap::ArgAction::SetTrue)
                 .help("Print out the files that would be searched (do not perform the search)"),
         )
         .arg(
             Arg::new("indexes")
                 .long("indexes")
+                .action(clap::ArgAction::SetTrue)
                 .help("print out the indexes that would be used (do not perform the search)")
         )
         .arg(
             Arg::new("delete")
                 .long("delete")
+                .action(clap::ArgAction::SetTrue)
                 .help("Delete the cached index files for the directory (if any)")
         )
         .arg(Arg::new("query"))

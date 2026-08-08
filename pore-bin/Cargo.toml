@@ -22,6 +22,8 @@ macros = { path = "../macros" }
 pore-core = { path = "../pore-core" }
 
 [dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
 tempfile = "3.27.0"
 
 [[bin]]

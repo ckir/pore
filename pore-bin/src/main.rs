@@ -122,13 +122,23 @@ fn find_index_dir(for_dir: &Path, index_name: Option<&str>) -> Result<PathBuf, a
     let mut index_root = PathBuf::from(cache_home);
     index_root.push(env!("CARGO_PKG_NAME"));
     if for_dir.is_absolute() {
-        index_root.push(for_dir.strip_prefix("/")?);
+        index_root.push(strip_root(for_dir));
     } else {
-        index_root.push(env::current_dir()?.strip_prefix("/")?);
+        index_root.push(strip_root(&env::current_dir()?));
         index_root.push(for_dir)
     }
     if let Some(name) = index_name {
         index_root.push(format!("__index_{}", name));
     }
     return Ok(index_root);
+}
+
+/// Strip the filesystem root from a path so it can be used as a cache subdirectory.
+/// On Unix, strips `/` (1 component). On Windows, strips `C:\` (Prefix + RootDir, 2 components).
+fn strip_root(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    let skip: usize = 2; // Prefix("C:") + RootDir
+    #[cfg(not(windows))]
+    let skip: usize = 1; // RootDir
+    path.components().skip(skip).collect()
 }
