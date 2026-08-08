@@ -1,6 +1,6 @@
 ---
 name: ci-release-redesign
-description: Design for replacing CI workflows with tag-based release builds producing pre-compiled binaries for Windows/Linux/macOS
+description: Design for replaced CI workflows with tag-based release builds producing pre-compiled binaries for Windows/Linux/macOS, plus RustDoc publishing
 ---
 
 # CI Release Redesign
@@ -8,8 +8,8 @@ description: Design for replacing CI workflows with tag-based release builds pro
 ## Overview
 
 Replace the current multi-channel CI (stable/beta/nightly across OSes) with two workflows:
-1. **CI** — runs on push to master and PRs: format check + test
-2. **Release** — triggered by push tags or manual dispatch: builds release binaries, creates GitHub Releases on tag pushes
+1. **CI** — runs on push to master and PRs: full quality gate (fmt, clippy, test)
+2. **Release** — triggered by push tags or manual dispatch: full quality gate + builds release binaries + publishes RustDoc to GitHub Pages on tag pushes, creates GitHub Releases on tag pushes
 
 ## Trigger Model
 
@@ -17,7 +17,7 @@ Replace the current multi-channel CI (stable/beta/nightly across OSes) with two 
 |---------|---------|-------------|
 | Push to master | ✅ run | ❌ skip (artifacts kept 1 day) |
 | PR | ✅ run | ❌ skip |
-| Push tag `v*` | ✅ run | ✅ run (creates GitHub Release) |
+| Push tag `v*` | ✅ run | ✅ run (creates GitHub Release, publishes RustDoc) |
 | Manual dispatch | ❌ skip | ✅ run (artifacts kept 1 day) |
 
 ## Version Extraction
@@ -27,7 +27,7 @@ Replace the current multi-channel CI (stable/beta/nightly across OSes) with two 
 
 ## Build Matrix
 
-Approach B: native builds on latest runners, one target per matrix entry (macOS builds both Darwin targets).
+Approach B: native builds on latest runners, one target per matrix entry.
 
 | Runner | Target Triple | Archive Format |
 |--------|--------------|----------------|
@@ -49,22 +49,33 @@ Checksum file: `{archive-name}.sha256`
 
 ### CI Workflow (`.github/workflows/ci.yml`)
 
-**Jobs:**
-- `rustfmt` — format check on `ubuntu-latest`
-- `test` — `cargo test` on `ubuntu-latest` (stable Rust only)
+Full quality gate on `ubuntu-latest` with stable Rust:
 
-Removed: beta/nightly channels, redundant OS test matrix. Format + test on stable Linux covers the logic; platform-specific behavior is exercised by the release build jobs.
+**Jobs:**
+- `fmt` — `cargo fmt --all -- --check`
+- `clippy` — `cargo clippy --workspace --all-targets -- -D warnings`
+- `test` — `cargo test --workspace --verbose`
+
+All three jobs run in parallel on push to master and PRs.
 
 ### Release Workflow (`.github/workflows/release.yml`)
 
+Runs the full quality gate first, then builds binaries and publishes artifacts.
+
 **Jobs:**
-- `build` (matrix) — 4 entries, one per target triple. Each:
+- `quality` — runs fmt, clippy, and test (same as CI workflow). All must pass before builds proceed.
+- `build` (matrix) — 4 entries, one per target triple. Depends on `quality`. Each:
   1. Install Rust stable
   2. `rustup target add <triple>`
   3. `cargo build --release --target <triple>`
   4. Package binary + README + LICENSE into archive (`.tar.gz` for Unix, `.zip` for Windows)
   5. Generate SHA256 checksum
   6. Upload artifact (retention: 1 day)
+
+- `rustdoc` — depends on `quality`. Only runs on `v*` tag push.
+  1. `cargo doc --workspace --no-deps`
+  2. Deploy to GitHub Pages via `peaceiris/actions-gh-pages@v4`
+  3. Publishes to `gh-pages` branch
 
 - `release` — depends on all `build` jobs. Only runs on `v*` tag push.
   1. Download all artifacts
@@ -75,12 +86,14 @@ Removed: beta/nightly channels, redundant OS test matrix. Format + test on stabl
 ## Actions (Latest Versions)
 
 - `actions/checkout@v4`
-- `actions-rs/toolchain@v1` (or `dtolnay/rust-toolchain@stable` if preferred)
+- `dtolnay/rust-toolchain@stable` (preferred over deprecated actions-rs/toolchain)
 - `actions/upload-artifact@v4`
 - `actions/download-artifact@v4`
 - `softprops/action-gh-release@v2`
+- `peaceiris/actions-gh-pages@v4`
 
 ## Artifact Retention
 
 - Workflow artifacts: 1 day (`retention-days: 1`)
 - GitHub Release assets: permanent (only created on tag push)
+- RustDoc: published to GitHub Pages (`gh-pages` branch), permanent
