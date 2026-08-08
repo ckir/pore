@@ -242,8 +242,8 @@ threads = 40
     fn example_file_is_complete() {
         let example = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("pore.example.toml");
         let contents = &fs::read_to_string(&example).unwrap();
-        let value: toml::Value =
-            toml::from_str(contents).unwrap_or_else(|_| panic!("Error parsing config file {:?}", example));
+        let value: toml::Value = toml::from_str(contents)
+            .unwrap_or_else(|_| panic!("Error parsing config file {:?}", example));
         let index: FileIndexOptionsShape = value.clone().try_into().unwrap();
         let search: SearchConfigOpt = value.clone().try_into().unwrap();
         if let Err(missing_fields) = index.all() {
