@@ -13,7 +13,7 @@ use termcolor::ColorChoice;
 ///
 /// The four variants map directly to `termcolor::ColorChoice`. `Auto` checks whether
 /// stdout is a TTY and falls back to no colors otherwise.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ColorMode {
     /// Auto-detect terminal support (falls back to `Never` if stdout is not a TTY).

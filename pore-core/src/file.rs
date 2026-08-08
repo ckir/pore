@@ -178,6 +178,11 @@ pub struct FileSearchResult {
 }
 
 impl FileSearchResult {
+    /// Creates a new FileSearchResult.
+    pub fn new(file: PathBuf, score: f32, lines: Vec<Line>) -> Self {
+        Self { file, score, lines }
+    }
+
     /// Returns the path to the matched file.
     pub fn file(&self) -> &Path {
         &self.file

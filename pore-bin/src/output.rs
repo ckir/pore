@@ -55,6 +55,7 @@ pub fn print_results(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::color_mode::ColorMode;
     use pore_core::{FileSearchResult, Line};
     use std::path::PathBuf;
 
