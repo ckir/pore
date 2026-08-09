@@ -22,11 +22,9 @@ fn help_exits_zero() {
 }
 
 #[test]
-fn no_args_exits_zero() {
-    // With no query, pore returns Ok(true) → exit 0.
-    // HOME is needed for config file lookup and index path resolution.
+fn no_args_prints_help_and_fails() {
     let (mut cmd, _tmp) = pore_with_home();
-    cmd.assert().success();
+    cmd.assert().failure().code(2);
 }
 
 #[test]
@@ -34,11 +32,9 @@ fn files_command_lists_files() {
     let tmp = tempfile::tempdir().unwrap();
     fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
 
-    // --files lists files that would be searched. Use --in-memory to avoid
-    // the disk index path bug on Windows (strip_prefix("/") on absolute paths).
-    // Positional args: [query] [dir] — use empty query to target a specific dir.
     let (mut cmd, _home) = pore_with_home();
-    cmd.arg("--in-memory")
+    cmd.arg("search")
+        .arg("--in-memory")
         .arg("--files")
         .arg("")
         .arg(tmp.path())
@@ -52,9 +48,9 @@ fn indexes_command_prints_index_info() {
     let tmp = tempfile::tempdir().unwrap();
     fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
 
-    // --indexes prints index metadata. Use --in-memory to avoid Windows path issues.
     let (mut cmd, _home) = pore_with_home();
-    cmd.arg("--in-memory")
+    cmd.arg("search")
+        .arg("--in-memory")
         .arg("--indexes")
         .arg("")
         .arg(tmp.path())
@@ -67,9 +63,9 @@ fn delete_command_exits_zero() {
     let tmp = tempfile::tempdir().unwrap();
     fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
 
-    // --delete removes cached index files. With --in-memory this is a no-op but should still succeed.
     let (mut cmd, _home) = pore_with_home();
-    cmd.arg("--in-memory")
+    cmd.arg("search")
+        .arg("--in-memory")
         .arg("--delete")
         .arg("")
         .arg(tmp.path())
@@ -82,9 +78,9 @@ fn search_command_finds_matches() {
     let tmp = tempfile::tempdir().unwrap();
     fs::write(tmp.path().join("test.txt"), "hello world from pore").unwrap();
 
-    // --rebuild forces index creation. Use --in-memory to avoid Windows path issues.
     let (mut cmd, _home) = pore_with_home();
-    cmd.arg("--in-memory")
+    cmd.arg("search")
+        .arg("--in-memory")
         .arg("--rebuild")
         .arg("pore")
         .arg(tmp.path())
@@ -99,7 +95,8 @@ fn json_output_flag() {
     fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
 
     let (mut cmd, _home) = pore_with_home();
-    cmd.arg("--in-memory")
+    cmd.arg("search")
+        .arg("--in-memory")
         .arg("--rebuild")
         .arg("--json")
         .arg("hello")
@@ -118,9 +115,9 @@ fn filename_only_flag() {
     )
     .unwrap();
 
-    // -l / --files-with-matches prints filenames only, not matching lines
     let (mut cmd, _home) = pore_with_home();
-    cmd.arg("--in-memory")
+    cmd.arg("search")
+        .arg("--in-memory")
         .arg("--rebuild")
         .arg("-l")
         .arg("hello")

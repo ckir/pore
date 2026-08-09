@@ -10,9 +10,9 @@ license = "MIT"
 anyhow = { version = "1.0.104", features = ["backtrace"] }
 atty = "0.2.14"
 chrono = { version = "0.4.45", features = ["serde"] }
-clap = "4.6.6"
+clap = { version = "4.6.1", features = ["derive"] }
 ignore = "0.4.33"
-mlua = { version = "0.12.0", features = ["async", "macros", "lua51", "vendored"] }
+mlua = { version = "0.12.0", features = ["async", "macros", "lua54", "vendored"] }
 serde = "1.0.229"
 serde_json = "1.0.151"
 tantivy = "0.26.1"
