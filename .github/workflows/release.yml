@@ -77,26 +77,29 @@ jobs:
       - name: Package artifacts
         run: |
           mkdir -p dist
-          # Determine binary name
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            BIN_NAME="pore.exe"
-          else
-            BIN_NAME="pore"
-          fi
-          # Copy binary, README, LICENSE into staging dir
+          BIN_NAME="pore"
+          [ "${{ matrix.os }}" = "windows-latest" ] && BIN_NAME="pore.exe"
           STAGE="dist/pore-${{ matrix.target }}"
           mkdir -p "$STAGE"
           cp "target/${{ matrix.target }}/release/$BIN_NAME" "$STAGE/"
           cp README.md LICENSE "$STAGE/"
-          # Generate SHA256 checksum
+        shell: bash
+
+      - name: Package for Windows
+        if: matrix.os == 'windows-latest'
+        run: |
           cd dist
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            7z a "pore-${{ matrix.target }}.${{ matrix.archive_ext }}" "pore-${{ matrix.target }}" > /dev/null
-            certutil -hashfile "pore-${{ matrix.target }}.${{ matrix.archive_ext }}" SHA256 | findstr /v "SHA256" | findstr /v "certutil" > "pore-${{ matrix.target }}.${{ matrix.archive_ext }}.sha256"
-          else
-            tar czf "pore-${{ matrix.target }}.${{ matrix.archive_ext }}" "pore-${{ matrix.target }}"
-            sha256sum "pore-${{ matrix.target }}.${{ matrix.archive_ext }}" > "pore-${{ matrix.target }}.${{ matrix.archive_ext }}.sha256"
-          fi
+          Compress-Archive -Path "pore-${{ matrix.target }}" -DestinationPath "pore-${{ matrix.target }}.${{ matrix.archive_ext }}" -Force
+          $hash = Get-FileHash -Algorithm SHA256 -Path "pore-${{ matrix.target }}.${{ matrix.archive_ext }}"
+          "$($hash.Hash) pore-${{ matrix.target }}.${{ matrix.archive_ext }}" | Out-File -FilePath "pore-${{ matrix.target }}.${{ matrix.archive_ext }}.sha256" -Encoding utf8
+        shell: pwsh
+
+      - name: Package for Unix
+        if: matrix.os != 'windows-latest'
+        run: |
+          cd dist
+          tar czf "pore-${{ matrix.target }}.${{ matrix.archive_ext }}" "pore-${{ matrix.target }}"
+          sha256sum "pore-${{ matrix.target }}.${{ matrix.archive_ext }}" > "pore-${{ matrix.target }}.${{ matrix.archive_ext }}.sha256"
         shell: bash
 
       - name: Upload artifacts
