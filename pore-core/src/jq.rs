@@ -59,3 +59,78 @@ impl JqEngine {
         Ok(results)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn compile_valid_filter() {
+        let engine = JqEngine::compile(".foo");
+        assert!(engine.is_ok());
+    }
+
+    #[test]
+    fn compile_invalid_filter() {
+        let engine = JqEngine::compile(".[invalid syntax!!");
+        assert!(engine.is_err());
+    }
+
+    #[test]
+    fn run_identity_filter() {
+        let engine = JqEngine::compile(".").unwrap();
+        let input = json!({"a": 1, "b": 2});
+        let results = engine.run(&input).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0], json!({"a": 1, "b": 2}));
+    }
+
+    #[test]
+    fn run_field_access() {
+        let engine = JqEngine::compile(".name").unwrap();
+        let input = json!({"name": "pore", "version": "0.2.0"});
+        let results = engine.run(&input).unwrap();
+        assert_eq!(results, vec![json!("pore")]);
+    }
+
+    #[test]
+    fn run_array_filter() {
+        let engine = JqEngine::compile("[.[] | select(. > 2)]").unwrap();
+        let input = json!([1, 2, 3, 4, 5]);
+        let results = engine.run(&input).unwrap();
+        assert_eq!(results, vec![json!([3, 4, 5])]);
+    }
+
+    #[test]
+    fn run_multiple_outputs() {
+        let engine = JqEngine::compile(".[]").unwrap();
+        let input = json!([10, 20, 30]);
+        let results = engine.run(&input).unwrap();
+        assert_eq!(results, vec![json!(10), json!(20), json!(30)]);
+    }
+
+    #[test]
+    fn run_empty_output() {
+        let engine = JqEngine::compile("empty").unwrap();
+        let input = json!(null);
+        let results = engine.run(&input).unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn run_string_interpolation() {
+        let engine = JqEngine::compile(r#""\(.a):\(.b)""#).unwrap();
+        let input = json!({"a": "hello", "b": "world"});
+        let results = engine.run(&input).unwrap();
+        assert_eq!(results, vec![json!("hello:world")]);
+    }
+
+    #[test]
+    fn run_sort_by() {
+        let engine = JqEngine::compile("sort_by(.x)").unwrap();
+        let input = json!([{"x": 3}, {"x": 1}, {"x": 2}]);
+        let results = engine.run(&input).unwrap();
+        assert_eq!(results, vec![json!([{"x": 1}, {"x": 2}, {"x": 3}])]);
+    }
+}
