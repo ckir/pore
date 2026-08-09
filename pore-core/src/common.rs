@@ -164,7 +164,8 @@ pub fn create_index<
         key
     };
     let mut schema_builder = Schema::builder();
-    schema_builder.add_text_field(id_field, STRING | STORED);
+    schema_builder.add_text_field(id_field, STRING | STORED | FAST);
+    schema_builder.add_u64_field("modified", INDEXED | FAST);
     for name in text_fields {
         let text_options = TextOptions::default().set_indexing_options(
             TextFieldIndexing::default()
