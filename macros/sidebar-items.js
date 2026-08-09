@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"attr":["create_option_copy"]};

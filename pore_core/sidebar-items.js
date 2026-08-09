@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["language"],"struct":["FileIndex","FileIndexOptions","FileIndexOptionsShape","FileMetadata","FileSearchOptions","FileSearchOptionsShape","FileSearchResult","GenericIndex","IndexOptions","IndexOptionsShape","Line","SearchOptions","SearchOptionsShape","SearchResult"],"trait":["FieldMap"]};

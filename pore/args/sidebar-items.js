@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CmdArg"],"fn":["parse_args"],"struct":["GlobalConfig"]};
