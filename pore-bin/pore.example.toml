@@ -55,3 +55,6 @@ color = "auto"
 
 # Print out the files that match the search (not the matching lines).
 filename_only = false
+
+# Sort results by a field. Options: "date", "path". If not provided, sorts by relevance score.
+sort = "score"

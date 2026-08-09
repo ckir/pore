@@ -28,7 +28,6 @@ mod file;
 mod generic;
 pub mod jq;
 pub mod language;
-mod location;
 
 pub use field_map::*;
 pub use file::*;

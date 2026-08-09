@@ -36,11 +36,12 @@ pub fn print_results(
         } else {
             stdout.set_color(&filename_color)?;
             writeln!(&mut stdout, "{}", result.file().to_string_lossy())?;
-            for line in result.lines() {
-                stdout.set_color(&line_number_color)?;
-                write!(&mut stdout, "{}", line.number)?;
+            for snippet in result.snippets() {
                 stdout.set_color(&default_color)?;
-                writeln!(&mut stdout, ":{}", line.text)?;
+                let colored_snippet = snippet
+                    .replace("<b>", "\x1b[31m")
+                    .replace("</b>", "\x1b[0m");
+                writeln!(&mut stdout, "  {}", colored_snippet)?;
             }
             if !conf.filename_only && i < results.len() - 1 {
                 println!();
@@ -54,7 +55,7 @@ pub fn print_results(
 mod tests {
     use super::*;
     use crate::color_mode::ColorMode;
-    use pore_core::{FileSearchResult, Line};
+    use pore_core::FileSearchResult;
     use std::path::PathBuf;
 
     #[test]
@@ -62,10 +63,7 @@ mod tests {
         let results = vec![FileSearchResult::new(
             PathBuf::from("test.txt"),
             0.5,
-            vec![Line {
-                number: 1,
-                text: "hello".to_string(),
-            }],
+            vec!["<b>hello</b>".to_string()],
         )];
         let conf = SearchConfig {
             json: true,

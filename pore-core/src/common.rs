@@ -136,6 +136,7 @@ pub fn create_index<
     config: &U,
     id_field: &str,
     text_fields: I,
+    add_modified: bool,
 ) -> Result<(Option<T>, Index), anyhow::Error> {
     let mut ret_meta: Option<T> = None;
     let metafile = cache_dir.as_ref().map(|p| p.as_ref().join(METADATA_FILE));
@@ -165,13 +166,15 @@ pub fn create_index<
     };
     let mut schema_builder = Schema::builder();
     schema_builder.add_text_field(id_field, STRING | STORED | FAST);
-    schema_builder.add_u64_field("modified", INDEXED | FAST);
+    if add_modified {
+        schema_builder.add_u64_field("modified", INDEXED | FAST);
+    }
     for name in text_fields {
         let text_options = TextOptions::default().set_indexing_options(
             TextFieldIndexing::default()
                 .set_tokenizer(&get_tokenizer(config.language().into()))
                 .set_index_option(IndexRecordOption::WithFreqsAndPositions),
-        );
+        ).set_stored();
         schema_builder.add_text_field(&name.into(), text_options);
     }
     let schema = schema_builder.build();
@@ -272,6 +275,7 @@ mod tests {
             &config,
             "id",
             vec!["text".to_string()],
+            false,
         )
         .unwrap();
         assert!(meta_opt.is_none());
@@ -290,6 +294,7 @@ mod tests {
             &config,
             "id",
             vec!["text".to_string()],
+            false,
         )
         .unwrap();
         assert!(meta_opt.is_none());
@@ -313,6 +318,7 @@ mod tests {
             &config,
             "id",
             vec!["text".to_string()],
+            false,
         )
         .unwrap();
         assert!(meta_opt.is_some());
@@ -328,6 +334,7 @@ mod tests {
             &config,
             "id",
             vec!["text".to_string()],
+            false,
         )
         .unwrap();
         let result = delete_index(&index, None).unwrap();
@@ -345,6 +352,7 @@ mod tests {
             &config,
             "id",
             vec!["text".to_string()],
+            false,
         )
         .unwrap();
         // delete_index attempts cleanup; returns true when given a real path

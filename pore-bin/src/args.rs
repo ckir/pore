@@ -272,6 +272,9 @@ pub fn build_search_config(args: SearchArgs) -> Result<GlobalConfig, anyhow::Err
     if let Some(threshold) = args.threshold {
         search.threshold = Some(threshold);
     }
+    if let Some(ref sort) = args.sort {
+        search.sort = Some(Some(sort.clone()));
+    }
     if args.files_with_matches {
         search.filename_only = Some(true);
     }

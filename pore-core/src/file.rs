@@ -18,8 +18,7 @@ use crate::common::IndexMetadata;
 use crate::common::MetadataConfig;
 use crate::common::METADATA_FILE;
 use crate::language::LanguageRef;
-use crate::location;
-use crate::location::DocResult;
+
 use chrono::DateTime;
 use chrono::Local;
 use chrono::Utc;
@@ -136,6 +135,8 @@ pub struct FileSearchOptions {
     pub filename_only: bool,
     /// Overrides the base directory for resolving file paths.
     pub root_dir: Option<String>,
+    /// Sort results by field (options: date, path). Defaults to relevance score.
+    pub sort: Option<String>,
 }
 
 impl Default for FileSearchOptions {
@@ -145,6 +146,7 @@ impl Default for FileSearchOptions {
             threshold: 0.0,
             filename_only: false,
             root_dir: None,
+            sort: None,
         }
     }
 }
@@ -195,19 +197,19 @@ impl FileMetadata {
 /// A single search result for a file.
 ///
 /// Contains the file path, relevance score, and optionally the matching
-/// lines (omitted when [`FileSearchOptions::filename_only`] is true).
+/// snippets (omitted when [`FileSearchOptions::filename_only`] is true).
 #[derive(Debug, Serialize)]
 pub struct FileSearchResult {
     file: PathBuf,
     score: f32,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    lines: Vec<Line>,
+    snippets: Vec<String>,
 }
 
 impl FileSearchResult {
     /// Creates a new FileSearchResult.
-    pub fn new(file: PathBuf, score: f32, lines: Vec<Line>) -> Self {
-        Self { file, score, lines }
+    pub fn new(file: PathBuf, score: f32, snippets: Vec<String>) -> Self {
+        Self { file, score, snippets }
     }
 
     /// Returns the path to the matched file.
@@ -218,9 +220,9 @@ impl FileSearchResult {
     pub fn score(&self) -> f32 {
         self.score
     }
-    /// Returns the matching lines in the file (may be empty).
-    pub fn lines(&self) -> &Vec<Line> {
-        &self.lines
+    /// Returns the matching snippets in the file (may be empty).
+    pub fn snippets(&self) -> &Vec<String> {
+        &self.snippets
     }
 }
 
@@ -229,27 +231,9 @@ impl IntoLua for FileSearchResult {
         let tbl = lua.create_table()?;
         tbl.set("file", self.file.to_string_lossy())?;
         tbl.set("score", self.score)?;
-        if !self.lines.is_empty() {
-            tbl.set("lines", self.lines)?;
+        if !self.snippets.is_empty() {
+            tbl.set("snippets", self.snippets)?;
         }
-        Ok(mlua::Value::Table(tbl))
-    }
-}
-
-/// A single matching line within a file.
-#[derive(Debug, Serialize)]
-pub struct Line {
-    /// 1-based line number.
-    pub number: u32,
-    /// The line text (trailing newline stripped).
-    pub text: String,
-}
-
-impl IntoLua for Line {
-    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
-        let tbl = lua.create_table()?;
-        tbl.set("number", self.number)?;
-        tbl.set("text", self.text)?;
         Ok(mlua::Value::Table(tbl))
     }
 }
@@ -308,7 +292,7 @@ impl FileIndex {
         config: &FileIndexOptions,
     ) -> Result<Self, anyhow::Error> {
         let (meta_opt, index): (Option<FileMetadata>, Index) =
-            create_index(cache_dir.as_ref(), config, "filepath", vec!["contents"])?;
+            create_index(cache_dir.as_ref(), config, "filepath", vec!["contents".to_string()], true)?;
         let meta = meta_opt.unwrap_or_else(|| FileMetadata::new(config.clone(), for_dir).unwrap());
         let filepath = index
             .schema()
@@ -433,40 +417,60 @@ impl FileIndex {
             .reload_policy(ReloadPolicy::OnCommitWithDelay)
             .try_into()?;
         let searcher = reader.searcher();
-        let top_docs = searcher.search(query, &TopDocs::with_limit(opts.limit).order_by_score())?;
-        let mut doc_results = Vec::new();
-        for (score, doc_address) in top_docs {
-            if score > opts.threshold {
-                doc_results.push(DocResult {
+
+        let process_docs = |doc_addresses: Vec<tantivy::DocAddress>, scores: Vec<f32>| -> Result<Vec<FileSearchResult>, anyhow::Error> {
+            let snippet_generator = tantivy::snippet::SnippetGenerator::create(
+                &searcher,
+                query,
+                *self.contents()
+            )?;
+            let mut res = Vec::new();
+            for (i, doc_address) in doc_addresses.into_iter().enumerate() {
+                let score = scores.get(i).copied().unwrap_or(0.0);
+                if opts.sort.is_none() && score <= opts.threshold {
+                    continue;
+                }
+                let doc: tantivy::TantivyDocument = searcher.doc(doc_address)?;
+                let filepath = doc.get_first(*self.filepath()).unwrap().as_str().unwrap();
+                let fullpath = if let Some(root_dir) = opts.root_dir.as_deref() {
+                    PathBuf::from(root_dir).join(filepath)
+                } else {
+                    PathBuf::from(self.meta.for_dir()).join(filepath)
+                };
+
+                let mut snippets = Vec::new();
+                if !opts.filename_only {
+                    let snippet = snippet_generator.snippet_from_doc(&doc);
+                    if !snippet.fragment().is_empty() {
+                        snippets.push(snippet.to_html());
+                    }
+                }
+                res.push(FileSearchResult {
+                    file: fullpath,
                     score,
-                    address: doc_address,
+                    snippets,
                 });
             }
-        }
-        let mut position_map = location::get_search_results(self, query, &searcher, &doc_results)?;
-        let mut results = Vec::new();
-        for doc_result in doc_results {
-            let doc: tantivy::TantivyDocument = searcher.doc(doc_result.address)?;
-            let filepath = doc.get_first(*self.filepath()).unwrap().as_str().unwrap();
-            let fullpath = if let Some(root_dir) = opts.root_dir.as_deref() {
-                PathBuf::from(root_dir).join(filepath)
-            } else {
-                PathBuf::from(self.meta.for_dir()).join(filepath)
-            };
+            Ok(res)
+        };
 
-            let mut lines = Vec::new();
-            if !opts.filename_only {
-                if let Some(position_data) = position_map.get_mut(&doc_result.address) {
-                    location::positions_to_lines(self, &fullpath, position_data, &mut lines)?
-                };
+        if let Some(sort_field) = &opts.sort {
+            if sort_field == "date" {
+                let top_docs = searcher.search(query, &tantivy::collector::TopDocs::with_limit(opts.limit).order_by_fast_field::<u64>("modified", tantivy::Order::Desc))?;
+                let len = top_docs.len();
+                process_docs(top_docs.into_iter().map(|x| x.1).collect(), vec![0.0; len])
+            } else if sort_field == "path" {
+                let top_docs = searcher.search(query, &tantivy::collector::TopDocs::with_limit(opts.limit).order_by_string_fast_field("filepath", tantivy::Order::Asc))?;
+                let len = top_docs.len();
+                process_docs(top_docs.into_iter().map(|x| x.1).collect(), vec![0.0; len])
+            } else {
+                let top_docs = searcher.search(query, &tantivy::collector::TopDocs::with_limit(opts.limit).order_by_score())?;
+                process_docs(top_docs.iter().map(|x| x.1).collect(), top_docs.iter().map(|x| x.0).collect())
             }
-            results.push(FileSearchResult {
-                file: fullpath,
-                score: doc_result.score,
-                lines,
-            });
+        } else {
+            let top_docs = searcher.search(query, &tantivy::collector::TopDocs::with_limit(opts.limit).order_by_score())?;
+            process_docs(top_docs.iter().map(|x| x.1).collect(), top_docs.iter().map(|x| x.0).collect())
         }
-        Ok(results)
     }
 }
 

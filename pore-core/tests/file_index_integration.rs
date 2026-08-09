@@ -93,7 +93,7 @@ fn search_filename_only_omits_lines() {
     };
     let results = search_file_index(&index, "hello", &opts);
     assert_eq!(results.len(), 1);
-    assert!(results[0].lines().is_empty());
+    assert!(results[0].snippets().is_empty());
 }
 
 #[test]
@@ -106,9 +106,9 @@ fn search_returns_matching_lines() {
     let opts = FileSearchOptions::default();
     let results = search_file_index(&index, "hello", &opts);
     assert_eq!(results.len(), 1);
-    let lines = results[0].lines();
-    assert!(!lines.is_empty());
-    assert!(lines.iter().any(|l| l.text.contains("hello match")));
+    let snippets = results[0].snippets();
+    assert!(!snippets.is_empty());
+    assert!(snippets.iter().any(|s| s.contains("hello")));
 }
 
 #[test]

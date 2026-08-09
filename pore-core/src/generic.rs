@@ -137,7 +137,7 @@ impl GenericIndex {
         I: IntoIterator<Item = T>,
         T: Into<String>,
     {
-        let (meta_opt, index) = create_index(cache_dir, config, id_field, text_fields)?;
+        let (meta_opt, index) = create_index(cache_dir, config, id_field, text_fields, false)?;
         let meta = meta_opt.unwrap_or_else(|| Metadata::new(config.clone()));
         Ok(Self {
             index,
@@ -161,8 +161,9 @@ impl GenericIndex {
     /// Returns all text (non-stored) fields in the schema.
     pub fn get_text_fields(&self) -> Vec<Field> {
         let mut ret = Vec::new();
+        let id_field = self.get_id_field().ok();
         for (field, entry) in self.index.schema().fields() {
-            if !entry.is_stored() {
+            if Some(field) != id_field && entry.name() != "modified" {
                 ret.push(field);
             }
         }

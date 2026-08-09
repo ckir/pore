@@ -53,6 +53,8 @@ pub struct SearchConfig {
     pub update: bool,
     /// When true, keep the index in memory only (no disk cache).
     pub in_memory: bool,
+    /// Sort results by field (options: date, path). Defaults to relevance score.
+    pub sort: Option<String>,
 }
 
 impl Default for SearchConfig {
@@ -66,6 +68,7 @@ impl Default for SearchConfig {
             rebuild_index: false,
             update: true,
             in_memory: false,
+            sort: None,
         }
     }
 }
@@ -80,6 +83,7 @@ impl SearchConfig {
             threshold: self.threshold,
             filename_only: self.filename_only,
             root_dir: Some(search_dir.to_string()),
+            sort: self.sort.clone(),
         }
     }
 }
