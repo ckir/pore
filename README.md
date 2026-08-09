@@ -14,6 +14,12 @@ search](https://en.wikipedia.org/wiki/Full-text_search) tool powered by
 If you can express what you're looking for as a regular expression or exact text
 string, use ripgrep. If you want something more like a Google search, use pore.
 
+**New in Pore:**
+Pore now supports native regular expressions and field grouping in your queries!
+- Regex searches: `pore "/b.* wolf/"`
+- Field grouping: `pore "path:(src AND *.rs)"`
+- Wildcards: `pore "*foo"`
+
 ```
 Usage:
 
