@@ -42,6 +42,27 @@ use tantivy::ReloadPolicy;
 use tantivy::schema::*;
 use tantivy::Index;
 
+use tantivy::schema::{Document, Field};
+
+pub struct PoreFileEntry {
+    filepath_field: Field,
+    filepath: String,
+    contents_field: Field,
+    contents: String,
+}
+
+impl Document for PoreFileEntry {
+    type Value<'a> = &'a str;
+    type FieldsValuesIter<'a> = std::array::IntoIter<(Field, &'a str), 2>;
+
+    fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
+        [
+            (self.filepath_field, self.filepath.as_str()),
+            (self.contents_field, self.contents.as_str()),
+        ].into_iter()
+    }
+}
+
 /// A file-based full-text index.
 ///
 /// Holds a Tantivy [`Index`] along with the schema fields (`filepath`, `contents`)
@@ -348,7 +369,7 @@ impl FileIndex {
     /// their modification time. Otherwise, only files modified since the last
     /// update are added.
     pub fn update(&mut self, rebuild: bool) -> Result<&mut Self, anyhow::Error> {
-        let mut index_writer = self.index.writer::<tantivy::TantivyDocument>(50_000_000)?;
+        let mut index_writer = self.index.writer::<PoreFileEntry>(50_000_000)?;
         let walker = self.get_file_walker()?;
         let now = Utc::now();
         walker.build_parallel().run(|| {
@@ -359,10 +380,13 @@ impl FileIndex {
                             entry.metadata().unwrap().modified().unwrap().into();
                         if rebuild || modified > self.meta.last_update {
                             let filepath = entry.path().strip_prefix(&self.meta.for_dir).unwrap();
-                            let doc = doc!(
-                                self.filepath => String::from(filepath.to_string_lossy()),
-                                self.contents => contents,
-                            );
+                            let filepath_str = filepath.to_string_lossy().into_owned();
+                            let doc = PoreFileEntry {
+                                filepath_field: self.filepath,
+                                filepath: filepath_str,
+                                contents_field: self.contents,
+                                contents: contents,
+                            };
                             let _ = index_writer.add_document(doc);
                         }
                     }
