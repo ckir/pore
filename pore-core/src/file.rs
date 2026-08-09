@@ -51,17 +51,20 @@ pub struct PoreFileEntry {
     contents_value: OwnedValue,
     modified_field: Field,
     modified_value: OwnedValue,
+    ext_field: Field,
+    ext_value: OwnedValue,
 }
 
 impl Document for PoreFileEntry {
     type Value<'a> = &'a OwnedValue;
-    type FieldsValuesIter<'a> = std::array::IntoIter<(Field, &'a OwnedValue), 3>;
+    type FieldsValuesIter<'a> = std::array::IntoIter<(Field, &'a OwnedValue), 4>;
 
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
         [
             (self.filepath_field, &self.filepath_value),
             (self.contents_field, &self.contents_value),
             (self.modified_field, &self.modified_value),
+            (self.ext_field, &self.ext_value),
         ]
         .into_iter()
     }
@@ -79,6 +82,7 @@ pub struct FileIndex {
     filepath: Field,
     contents: Field,
     modified: Field,
+    ext: Field,
 }
 
 /// Configuration options for building a [`FileIndex`].
@@ -323,6 +327,9 @@ impl FileIndex {
     pub fn contents(&self) -> &Field {
         &self.contents
     }
+    pub fn ext(&self) -> &Field {
+        &self.ext
+    }
     /// Deletes the index and its on-disk cache (if any).
     pub fn delete(&self) -> anyhow::Result<bool> {
         delete_index(&self.index, self.cache_dir.as_deref())
@@ -361,6 +368,10 @@ impl FileIndex {
             .schema()
             .get_field("modified")
             .expect("No field named 'modified'");
+        let ext = index
+            .schema()
+            .get_field("ext")
+            .expect("No field named 'ext'");
         Ok(Self {
             index,
             cache_dir: cache_dir.map(|p| fs::canonicalize(p).unwrap()),
@@ -368,6 +379,7 @@ impl FileIndex {
             filepath,
             contents,
             modified,
+            ext,
         })
     }
 
@@ -429,6 +441,11 @@ impl FileIndex {
                         if rebuild || modified > self.meta.last_update {
                             let filepath = entry.path().strip_prefix(&self.meta.for_dir).unwrap();
                             let filepath_str = filepath.to_string_lossy().into_owned();
+                            let ext_str = filepath
+                                .extension()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .into_owned();
                             let doc = PoreFileEntry {
                                 filepath_field: self.filepath,
                                 filepath_value: OwnedValue::Str(filepath_str),
@@ -436,6 +453,8 @@ impl FileIndex {
                                 contents_value: OwnedValue::Str(contents),
                                 modified_field: self.modified,
                                 modified_value: OwnedValue::U64(modified.timestamp_millis() as u64),
+                                ext_field: self.ext,
+                                ext_value: OwnedValue::Str(ext_str),
                             };
                             let _ = index_writer.add_document(doc);
                         }

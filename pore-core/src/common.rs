@@ -121,6 +121,7 @@ pub const METADATA_FILE: &str = "pore_meta.json";
 /// * `config` — index configuration (must implement [`MetadataConfig`]).
 /// * `id_field` — name of the stored identifier field.
 /// * `text_fields` — names of the searchable text fields.
+/// * `file_fields` — add the file-index-only fields (`modified`, `ext`).
 ///
 /// # Returns
 /// A tuple of `(Option<Metadata>, Index)`. The metadata is `Some` only when
@@ -136,7 +137,7 @@ pub fn create_index<
     config: &U,
     id_field: &str,
     text_fields: I,
-    add_modified: bool,
+    file_fields: bool,
 ) -> Result<(Option<T>, Index), anyhow::Error> {
     let mut ret_meta: Option<T> = None;
     let metafile = cache_dir.as_ref().map(|p| p.as_ref().join(METADATA_FILE));
@@ -166,8 +167,9 @@ pub fn create_index<
     };
     let mut schema_builder = Schema::builder();
     schema_builder.add_text_field(id_field, STRING | STORED | FAST);
-    if add_modified {
+    if file_fields {
         schema_builder.add_u64_field("modified", INDEXED | FAST);
+        schema_builder.add_text_field("ext", STRING | FAST);
     }
     for name in text_fields {
         let text_options = TextOptions::default()
