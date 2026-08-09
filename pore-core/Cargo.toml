@@ -12,6 +12,9 @@ serde = "1.0.229"
 serde_json = "1.0.151"
 tantivy = "0.26.1"
 macros = { path = "../macros" }
+jaq-core = "3.1.0"
+jaq-std = "3.0.1"
+jaq-json = { version = "2.0.2", features = ["serde"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"

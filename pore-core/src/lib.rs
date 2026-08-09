@@ -26,6 +26,7 @@ mod common;
 mod field_map;
 mod file;
 mod generic;
+pub mod jq;
 pub mod language;
 mod location;
 
