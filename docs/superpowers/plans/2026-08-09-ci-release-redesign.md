@@ -6,7 +6,7 @@
 
 **Architecture:** Two GitHub Actions workflows — `ci.yml` for parallel quality gate on push/PRs, and `release.yml` for tag-triggered binary builds + GitHub Release + GitHub Pages doc publishing. Matrix builds for 4 platform targets with native compilation.
 
-**Tech Stack:** GitHub Actions (v4 actions), Rust stable, `dtolnay/rust-toolchain`, `softprops/action-gh-release@v2`, `peaceiris/actions-gh-pages@v4`
+**Tech Stack:** GitHub Actions (v4 actions), Rust stable, `dtolnay/rust-toolchain`, `softprops/action-gh-release@v3`, `peaceiris/actions-gh-pages@v4`
 
 ## Global Constraints
 
@@ -174,7 +174,7 @@ git commit -m "ci: add release workflow skeleton with quality gate and version c
 
 **Interfaces:**
 - Consumes: `quality` job (must pass first)
-- Produces: 4 build artifacts uploaded via `actions/upload-artifact@v4` with `retention-days: 1`
+- Produces: 4 build artifacts uploaded via `actions/upload-artifact@v7` with `retention-days: 1`
 
 Add the `build` matrix job with 4 target triples. Each builds natively, packages the binary + README + LICENSE, generates a SHA256 checksum, and uploads the artifact.
 
@@ -251,7 +251,7 @@ Append after the `version-check` job:
           fi
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pore-${{ matrix.target }}
           path: |
@@ -314,7 +314,7 @@ Append after the `build` job:
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: release-assets/**/*
           generate_release_notes: false

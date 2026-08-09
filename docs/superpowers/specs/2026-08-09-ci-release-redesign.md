@@ -79,7 +79,7 @@ Runs the full quality gate first, then builds binaries and publishes artifacts.
 
 - `release` — depends on all `build` jobs. Only runs on `v*` tag push.
   1. Download all artifacts
-  2. Create GitHub Release (`softprops/action-gh-release@v2`)
+  2. Create GitHub Release (`softprops/action-gh-release@v3`)
   3. Upload archives + checksums as release assets
   4. Release body from `git log` since previous tag (or "Initial release")
 
@@ -87,9 +87,9 @@ Runs the full quality gate first, then builds binaries and publishes artifacts.
 
 - `actions/checkout@v4`
 - `dtolnay/rust-toolchain@stable` (preferred over deprecated actions-rs/toolchain)
-- `actions/upload-artifact@v4`
+- `actions/upload-artifact@v7`
 - `actions/download-artifact@v4`
-- `softprops/action-gh-release@v2`
+- `softprops/action-gh-release@v3`
 - `peaceiris/actions-gh-pages@v4`
 
 ## Artifact Retention
