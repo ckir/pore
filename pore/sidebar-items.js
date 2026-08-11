@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["find_index_dir","main","run_cmd","strip_root"],"mod":["args","color_mode","config","output"]};
+window.SIDEBAR_ITEMS = {"fn":["find_index_dir","main","run","run_eval","run_search","strip_root"],"mod":["args","color_mode","config","output"]};

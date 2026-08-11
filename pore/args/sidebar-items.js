@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["CmdArg"],"fn":["parse_args"],"struct":["GlobalConfig"]};
+window.SIDEBAR_ITEMS = {"enum":["CmdArg","Commands"],"fn":["build_search_config"],"struct":["Cli","EvalArgs","GlobalConfig","SearchArgs"]};

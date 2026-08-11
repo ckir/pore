@@ -1,2 +1,2 @@
-createSrcSidebar('[["macros",["",[],["lib.rs"]]],["pore",["",[],["args.rs","color_mode.rs","config.rs","main.rs","output.rs"]]],["pore_core",["",[],["common.rs","field_map.rs","file.rs","generic.rs","language.rs","lib.rs","location.rs"]]],["pore_lua",["",[],["lib.rs"]]]]');
-//{"start":19,"fragment_lengths":[29,79,111,32]}
+createSrcSidebar('[["macros",["",[],["lib.rs"]]],["pore",["",[],["args.rs","color_mode.rs","config.rs","main.rs","output.rs"]]],["pore_core",["",[],["common.rs","field_map.rs","file.rs","generic.rs","jq.rs","language.rs","lib.rs","location.rs"]]],["pore_lua",["",[],["lib.rs"]]]]');
+//{"start":19,"fragment_lengths":[29,79,119,32]}
