@@ -72,7 +72,7 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Full-text search a directory
-    Search(SearchArgs),
+    Search(Box<SearchArgs>),
     /// Evaluate a jq filter on JSON input (reads stdin or files)
     Eval(EvalArgs),
 }

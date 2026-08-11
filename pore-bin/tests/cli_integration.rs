@@ -192,10 +192,5 @@ fn eval_from_file() {
 
 #[test]
 fn eval_invalid_filter_errors() {
-    pore()
-        .arg("eval")
-        .arg(".[bad syntax!!")
-        .assert()
-        .failure();
+    pore().arg("eval").arg(".[bad syntax!!").assert().failure();
 }
-

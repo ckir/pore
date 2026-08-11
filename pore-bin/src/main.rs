@@ -42,7 +42,7 @@ fn main() {
 fn run() -> Result<bool, anyhow::Error> {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Search(args) => run_search(args),
+        Commands::Search(args) => run_search(*args),
         Commands::Eval(args) => run_eval(args),
     }
 }
@@ -93,8 +93,7 @@ fn run_search(args: args::SearchArgs) -> Result<bool, anyhow::Error> {
                 index.update(search.rebuild_index)?;
             }
             if let Some(query) = conf.query {
-                let query_parser =
-                    QueryParser::for_index(index.index(), vec![*index.contents()]);
+                let query_parser = QueryParser::for_index(index.index(), vec![*index.contents()]);
                 let query = query_parser.parse_query(&query)?;
                 let opts = &search.to_opts(&conf.search_dir);
                 let results = index.search(&query, opts)?;
