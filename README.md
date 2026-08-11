@@ -26,6 +26,47 @@ Options:
   -h, --help     Print help
   -V, --version  Print version
 
+Examples:
+  # Basic search
+  pore search "hello world"
+  pore search "fn main" src/
+
+  # Search with glob include/exclude patterns
+  pore search "TODO" -g '*.rs,*.toml'
+  pore search "error" --oglob 'target/*,.git/*'
+
+  # Search hidden files or follow symlinks
+  pore search "secret" --hidden
+  pore search "config" -L
+
+  # Language-scoped search
+  pore search "import" --language python
+
+  # Force index rebuild, or skip update
+  pore search "query" --rebuild
+  pore search "query" --no-update
+
+  # Output as JSON, with jq post-processing
+  pore search "bug" --json
+  pore search "bug" --json --jq '.files[] | .path'
+  pore search "error" --jq '.results | length'
+
+  # Sort, limit, and threshold
+  pore search "panic" --sort path --limit 20
+  pore search "leak" --threshold 0.5
+
+  # List files that would be searched (dry run)
+  pore search --files
+  pore search --indexes
+
+  # Delete cached index for the current directory
+  pore search --delete
+
+  # Evaluate a jq filter on JSON input
+  echo '{"a": 1, "b": 2}' | pore eval '.a + .b'
+  pore eval '.results[] | .path' results.json
+  pore eval '.' file1.json file2.json
+
 ### `pore search`
 
 Usage: pore search [OPTIONS] [QUERY] [DIR]
