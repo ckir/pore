@@ -126,3 +126,76 @@ fn filename_only_flag() {
         .success()
         .stdout(predicate::str::contains("test.txt"));
 }
+
+#[test]
+fn search_with_jq_filter() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("hello.txt"), "hello world from pore").unwrap();
+
+    let (mut cmd, _home) = pore_with_home();
+    let output = cmd
+        .arg("search")
+        .arg("--in-memory")
+        .arg("--rebuild")
+        .arg("--jq")
+        .arg("[.[].file]")
+        .arg("hello")
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("hello.txt"),
+        "Expected filename in jq output: {}",
+        stdout
+    );
+}
+
+#[test]
+fn search_with_jq_invalid_filter_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("test.txt"), "test content").unwrap();
+
+    let (mut cmd, _home) = pore_with_home();
+    cmd.arg("search")
+        .arg("--in-memory")
+        .arg("--rebuild")
+        .arg("--jq")
+        .arg(".[invalid!!")
+        .arg("test")
+        .arg(tmp.path())
+        .assert()
+        .failure();
+}
+
+#[test]
+fn eval_from_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    let json_file = tmp.path().join("data.json");
+    fs::write(&json_file, r#"{"name":"pore","version":"0.2.0"}"#).unwrap();
+
+    let output = pore()
+        .arg("eval")
+        .arg(".name")
+        .arg(&json_file)
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("pore"),
+        "Expected 'pore' in eval output: {}",
+        stdout
+    );
+}
+
+#[test]
+fn eval_invalid_filter_errors() {
+    pore()
+        .arg("eval")
+        .arg(".[bad syntax!!")
+        .assert()
+        .failure();
+}
+
