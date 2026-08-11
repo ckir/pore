@@ -1,0 +1,396 @@
+diff --git a/pore-bin/Cargo.toml b/pore-bin/Cargo.toml
+index 738c4d7..fb7fcb3 100644
+--- a/pore-bin/Cargo.toml
++++ b/pore-bin/Cargo.toml
+@@ -15,15 +15,17 @@ ignore = "0.4.33"
+ mlua = { version = "0.12.0", features = ["async", "macros", "lua51", "vendored"] }
+ serde = "1.0.229"
+ serde_json = "1.0.151"
+ tantivy = "0.26.1"
+ termcolor = "1.4.1"
+ toml = "1.1.4+spec-1.1.0"
+ macros = { path = "../macros" }
+ pore-core = { path = "../pore-core" }
+ 
+ [dev-dependencies]
++assert_cmd = "2"
++predicates = "3"
+ tempfile = "3.27.0"
+ 
+ [[bin]]
+ name = "pore"
+ path = "src/main.rs"
+diff --git a/pore-bin/src/args.rs b/pore-bin/src/args.rs
+index 8d7d89d..2779c0c 100644
+--- a/pore-bin/src/args.rs
++++ b/pore-bin/src/args.rs
+@@ -83,59 +83,67 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
+                 .short('i')
+                 .long("index")
+                 .num_args(1)
+                 .conflicts_with_all(&["in_memory", "no_memory", "hidden", "no_hidden", "follow_links", "no_follow_links", "language", "glob", "oglob", "glob_case_insensitive"])
+                 .help("Use the specified index for querying (must be specified in the config file)")
+         )
+         .arg(
+             Arg::new("update")
+                 .short('u')
+                 .long("update")
++                .action(clap::ArgAction::SetTrue)
+                 .help("Update the index before searching (the default)"),
+         )
+         .arg(
+             Arg::new("no_update")
+                 .long("no-update")
++                .action(clap::ArgAction::SetTrue)
+                 .conflicts_with("update")
+                 .help("Do not update the index before performing the query"),
+         )
+         .arg(
+             Arg::new("in_memory")
+                 .long("in-memory")
++                .action(clap::ArgAction::SetTrue)
+                 .help("Do not store the text index on disk (will have to rebuild every time)"),
+         )
+         .arg(
+             Arg::new("no_memory")
+                 .long("no-memory")
++                .action(clap::ArgAction::SetTrue)
+                 .conflicts_with("in_memory")
+                 .help("Force the index to be saved to disk (overrides --in-memory)"),
+         )
+         .arg(
+             Arg::new("hidden")
+                 .long("hidden")
++                .action(clap::ArgAction::SetTrue)
+                 .help("Search hidden files and directories"),
+         )
+         .arg(
+             Arg::new("no_hidden")
+                 .long("no-hidden")
++                .action(clap::ArgAction::SetTrue)
+                 .conflicts_with("hidden")
+                 .help("Ignore hidden files and directories (overrides --hidden)"),
+         )
+         .arg(
+             Arg::new("follow_links")
+                 .short('L')
+                 .long("follow")
++                .action(clap::ArgAction::SetTrue)
+                 .help("Follow symbolic links"),
+         )
+         .arg(
+             Arg::new("no_follow_links")
+                 .long("no-follow")
++                .action(clap::ArgAction::SetTrue)
+                 .conflicts_with("follow_links")
+                 .help("Don't follow symbolic links (overrides --follow)"),
+         )
+         .arg(
+             Arg::new("language")
+                 .long("language")
+                 .value_parser(LanguageRef::from_str)
+                 .help("The language to use for parsing files"),
+         )
+         .arg(
+@@ -149,34 +157,36 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
+         .arg(
+             Arg::new("oglob")
+                 .long("oglob")
+                 .help("Only search files that match this glob. Files that do not match any of these globs will be ignored.")
+                 .value_delimiter(',')
+                 .num_args(1..)
+         )
+         .arg(
+             Arg::new("glob_case_insensitive")
+                 .long("glob-case-insensitive")
++                .action(clap::ArgAction::SetTrue)
+                 .help("Patterns passed to --glob and --oglob will be matched in a case-insentive way.")
+         )
+         // Index args that don't conflict with --index
+         .arg(
+             Arg::new("threads")
+                 .short('j')
+                 .long("threads")
+                 .num_args(1)
+                 .value_parser(|a: &str| a.parse::<usize>().map_err(|_|"threads must be an unsigned integer".to_string()))
+                 .help("The approximate number of threads to use. A value of 0 (which is the default) will choose the thread count using heuristics.")
+         )
+         .arg(
+             Arg::new("rebuild_index")
+             .long("rebuild")
++            .action(clap::ArgAction::SetTrue)
+             .help("Force rebuild the index before searching")
+         )
+ 
+         // Search args
+         .arg(
+             Arg::new("limit")
+                 .long("limit")
+                 .num_args(1)
+                 .value_parser(|a: &str| a.parse::<usize>().map_err(|_|"limit must be an unsigned integer".to_string()))
+                 .help("Maximum number of files to return"),
+@@ -184,33 +194,36 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
+         .arg(
+             Arg::new("threshold")
+                 .long("threshold")
+                 .num_args(1)
+                 .value_parser(|a: &str| a.parse::<f32>().map_err(|_|"threshold must be a floating point number".to_string()))
+                 .help("Minimum score threshold for results"),
+         )
+         .arg(
+             Arg::new("json")
+                 .long("json")
++                .action(clap::ArgAction::SetTrue)
+                 .conflicts_with("commands")
+                 .help("Print the results as json"),
+         )
+         .arg(
+             Arg::new("files_with_matches")
+                 .short('l')
+                 .long("files-with-matches")
++                .action(clap::ArgAction::SetTrue)
+                 .conflicts_with("commands")
+                 .help("Print out the files that match the search (not the matching lines)."),
+         )
+         .arg(
+             Arg::new("no_ignore")
+                 .long("no-ignore")
++                .action(clap::ArgAction::SetTrue)
+                 .help("Don't respect .gitignore files"),
+         )
+         .arg(
+             Arg::new("color")
+                 .long("color")
+                 .num_args(1)
+                 .value_parser(["never", "auto", "always", "ansi"])
+                 .hide_possible_values(true)
+                 .help("This flag controls when to use colors. The default setting is auto, which will try to guess when to use colors.")
+                 .long_help("This flag controls when to use colors. The default setting is auto, which will try to guess when to use colors.
+@@ -221,30 +234,33 @@ pub fn parse_args() -> Result<GlobalConfig, anyhow::Error> {
+        always   Colors will always be used regardless of where output is sent.
+        ansi     Like 'always', but emits ANSI escapes (even in a Windows console).")
+         )
+         .group(
+             ArgGroup::new("commands")
+              .args(&["files", "indexes", "delete"])
+             )
+         .arg(
+             Arg::new("files")
+                 .long("files")
++                .action(clap::ArgAction::SetTrue)
+                 .help("Print out the files that would be searched (do not perform the search)"),
+         )
+         .arg(
+             Arg::new("indexes")
+                 .long("indexes")
++                .action(clap::ArgAction::SetTrue)
+                 .help("print out the indexes that would be used (do not perform the search)")
+         )
+         .arg(
+             Arg::new("delete")
+                 .long("delete")
++                .action(clap::ArgAction::SetTrue)
+                 .help("Delete the cached index files for the directory (if any)")
+         )
+         .arg(Arg::new("query"))
+         .arg(Arg::new("dir"))
+         .get_matches();
+ 
+     let mut index = FileIndexOptionsShape::default();
+     // Parse index options
+     if matches.contains_id("hidden") && matches.get_flag("hidden") {
+         index.hidden = Some(true);
+diff --git a/pore-bin/src/main.rs b/pore-bin/src/main.rs
+index fb78948..d18074f 100644
+--- a/pore-bin/src/main.rs
++++ b/pore-bin/src/main.rs
+@@ -115,20 +115,30 @@ fn run_cmd() -> Result<bool, anyhow::Error> {
+ /// If `index_name` is provided, a `__index_<name>` segment is appended so that multiple
+ /// named indexes can coexist for the same directory.
+ fn find_index_dir(for_dir: &Path, index_name: Option<&str>) -> Result<PathBuf, anyhow::Error> {
+     let mut cache_home = env::var("XDG_CACHE_HOME").unwrap_or("".to_string());
+     if cache_home == "" {
+         cache_home = env::var("HOME")? + "/.cache";
+     }
+     let mut index_root = PathBuf::from(cache_home);
+     index_root.push(env!("CARGO_PKG_NAME"));
+     if for_dir.is_absolute() {
+-        index_root.push(for_dir.strip_prefix("/")?);
++        index_root.push(strip_root(for_dir));
+     } else {
+-        index_root.push(env::current_dir()?.strip_prefix("/")?);
++        index_root.push(strip_root(&env::current_dir()?));
+         index_root.push(for_dir)
+     }
+     if let Some(name) = index_name {
+         index_root.push(format!("__index_{}", name));
+     }
+     return Ok(index_root);
+ }
++
++/// Strip the filesystem root from a path so it can be used as a cache subdirectory.
++/// On Unix, strips `/` (1 component). On Windows, strips `C:\` (Prefix + RootDir, 2 components).
++fn strip_root(path: &Path) -> PathBuf {
++    #[cfg(windows)]
++    let skip: usize = 2; // Prefix("C:") + RootDir
++    #[cfg(not(windows))]
++    let skip: usize = 1; // RootDir
++    path.components().skip(skip).collect()
++}
+diff --git a/pore-bin/tests/cli_integration.rs b/pore-bin/tests/cli_integration.rs
+new file mode 100644
+index 0000000..b22e77f
+--- /dev/null
++++ b/pore-bin/tests/cli_integration.rs
+@@ -0,0 +1,127 @@
++use assert_cmd::Command;
++use predicates::prelude::*;
++use std::fs;
++
++fn pore() -> Command {
++    Command::cargo_bin("pore").unwrap()
++}
++
++/// Returns a Command with `HOME` set to a temp directory.
++/// On Windows, `HOME` is not set by default, and pore requires it for
++/// config file lookup (`$HOME/.config/pore.toml`).
++fn pore_with_home() -> (Command, tempfile::TempDir) {
++    let tmp = tempfile::tempdir().unwrap();
++    let mut cmd = pore();
++    cmd.env("HOME", tmp.path());
++    (cmd, tmp)
++}
++
++#[test]
++fn help_exits_zero() {
++    pore().arg("--help").assert().success();
++}
++
++#[test]
++fn no_args_exits_zero() {
++    // With no query, pore returns Ok(true) → exit 0.
++    // HOME is needed for config file lookup and index path resolution.
++    let (mut cmd, _tmp) = pore_with_home();
++    cmd.assert().success();
++}
++
++#[test]
++fn files_command_lists_files() {
++    let tmp = tempfile::tempdir().unwrap();
++    fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
++
++    // --files lists files that would be searched. Use --in-memory to avoid
++    // the disk index path bug on Windows (strip_prefix("/") on absolute paths).
++    // Positional args: [query] [dir] — use empty query to target a specific dir.
++    let (mut cmd, _home) = pore_with_home();
++    cmd.arg("--in-memory")
++        .arg("--files")
++        .arg("")
++        .arg(tmp.path())
++        .assert()
++        .success()
++        .stdout(predicate::str::contains("test.txt"));
++}
++
++#[test]
++fn indexes_command_prints_index_info() {
++    let tmp = tempfile::tempdir().unwrap();
++    fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
++
++    // --indexes prints index metadata. Use --in-memory to avoid Windows path issues.
++    let (mut cmd, _home) = pore_with_home();
++    cmd.arg("--in-memory")
++        .arg("--indexes")
++        .arg("")
++        .arg(tmp.path())
++        .assert()
++        .success();
++}
++
++#[test]
++fn delete_command_exits_zero() {
++    let tmp = tempfile::tempdir().unwrap();
++    fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
++
++    // --delete removes cached index files. With --in-memory this is a no-op but should still succeed.
++    let (mut cmd, _home) = pore_with_home();
++    cmd.arg("--in-memory")
++        .arg("--delete")
++        .arg("")
++        .arg(tmp.path())
++        .assert()
++        .success();
++}
++
++#[test]
++fn search_command_finds_matches() {
++    let tmp = tempfile::tempdir().unwrap();
++    fs::write(tmp.path().join("test.txt"), "hello world from pore").unwrap();
++
++    // --rebuild forces index creation. Use --in-memory to avoid Windows path issues.
++    let (mut cmd, _home) = pore_with_home();
++    cmd.arg("--in-memory")
++        .arg("--rebuild")
++        .arg("pore")
++        .arg(tmp.path())
++        .assert()
++        .success()
++        .stdout(predicate::str::contains("test.txt"));
++}
++
++#[test]
++fn json_output_flag() {
++    let tmp = tempfile::tempdir().unwrap();
++    fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
++
++    let (mut cmd, _home) = pore_with_home();
++    cmd.arg("--in-memory")
++        .arg("--rebuild")
++        .arg("--json")
++        .arg("hello")
++        .arg(tmp.path())
++        .assert()
++        .success()
++        .stdout(predicate::str::contains("\"file\""));
++}
++
++#[test]
++fn filename_only_flag() {
++    let tmp = tempfile::tempdir().unwrap();
++    fs::write(tmp.path().join("test.txt"), "hello world\nline two\nline three").unwrap();
++
++    // -l / --files-with-matches prints filenames only, not matching lines
++    let (mut cmd, _home) = pore_with_home();
++    cmd.arg("--in-memory")
++        .arg("--rebuild")
++        .arg("-l")
++        .arg("hello")
++        .arg(tmp.path())
++        .assert()
++        .success()
++        .stdout(predicate::str::contains("test.txt"));
++}
+diff --git a/pore-lua/Cargo.toml b/pore-lua/Cargo.toml
+index 13fcb41..1384e73 100644
+--- a/pore-lua/Cargo.toml
++++ b/pore-lua/Cargo.toml
+@@ -8,18 +8,18 @@ mlua = { version = "0.12.0", features = ["async", "macros"] }
+ pore-core = { path = "../pore-core" }
+ tantivy = "0.26.1"
+ 
+ [lib]
+ crate-type = ["cdylib"]
+ 
+ [dev-dependencies]
+ tempfile = "3.27.0"
+ 
+ [features]
+-default = ["lua51", "module"]
++default = ["lua51", "vendored"]
+ lua54 = ["mlua/lua54"]
+ lua53 = ["mlua/lua53"]
+ lua52 = ["mlua/lua52"]
+ lua51 = ["mlua/lua51"]
+ luajit = ["mlua/luajit"]
+ vendored = ["mlua/vendored"]
+ module = ["mlua/module"]

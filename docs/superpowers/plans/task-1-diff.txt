@@ -1,0 +1,116 @@
+diff --git a/pore-core/Cargo.toml b/pore-core/Cargo.toml
+index 35eec58..0a0d9a6 100644
+--- a/pore-core/Cargo.toml
++++ b/pore-core/Cargo.toml
+@@ -1,14 +1,20 @@
+ [package]
+ name = "pore-core"
+ version = "0.1.0"
+ edition = "2021"
+ 
+ [dependencies]
+ anyhow = { version = "1.0.104", features = ["backtrace"] }
+ chrono = { version = "0.4.45", features = ["serde"] }
+ ignore = "0.4.33"
+-mlua = { version = "0.12.0", features = ["async", "macros", "module"] }
++mlua = { version = "0.12.0", features = ["async", "macros"] }
+ serde = "1.0.229"
+ serde_json = "1.0.151"
+ tantivy = "0.26.1"
+ macros = { path = "../macros" }
++
++[dev-dependencies]
++tempfile = "3.27.0"
++
++[features]
++vendored = ["mlua/vendored", "mlua/lua54"]
+diff --git a/pore-core/src/language.rs b/pore-core/src/language.rs
+index 448b170..c00ccb4 100644
+--- a/pore-core/src/language.rs
++++ b/pore-core/src/language.rs
+@@ -90,10 +90,85 @@ impl mlua::FromLua for LanguageRef {
+                 }
+             }),
+             _ => Err(mlua::Error::FromLuaConversionError {
+                 from: "value",
+                 to: "Language".to_string(),
+                 message: Some("Value is not a string".to_string()),
+             }),
+         };
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use std::str::FromStr;
++
++    #[test]
++    fn all_variants_serialize_to_snake_case() {
++        assert_eq!(serde_json::to_string(&LanguageRef::Arabic).unwrap(), "\"arabic\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Danish).unwrap(), "\"danish\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Dutch).unwrap(), "\"dutch\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::English).unwrap(), "\"english\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Finnish).unwrap(), "\"finnish\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::French).unwrap(), "\"french\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::German).unwrap(), "\"german\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Greek).unwrap(), "\"greek\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Hungarian).unwrap(), "\"hungarian\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Italian).unwrap(), "\"italian\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Norwegian).unwrap(), "\"norwegian\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Portuguese).unwrap(), "\"portuguese\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Romanian).unwrap(), "\"romanian\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Russian).unwrap(), "\"russian\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Spanish).unwrap(), "\"spanish\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Swedish).unwrap(), "\"swedish\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Tamil).unwrap(), "\"tamil\"");
++        assert_eq!(serde_json::to_string(&LanguageRef::Turkish).unwrap(), "\"turkish\"");
++    }
++
++    #[test]
++    fn all_variants_deserialize_from_snake_case() {
++        assert_eq!(serde_json::from_str::<LanguageRef>("\"arabic\"").unwrap(), LanguageRef::Arabic);
++        assert_eq!(serde_json::from_str::<LanguageRef>("\"english\"").unwrap(), LanguageRef::English);
++        assert_eq!(serde_json::from_str::<LanguageRef>("\"turkish\"").unwrap(), LanguageRef::Turkish);
++    }
++
++    #[test]
++    fn from_str_accepts_lowercase() {
++        assert_eq!(LanguageRef::from_str("english").unwrap(), LanguageRef::English);
++        assert_eq!(LanguageRef::from_str("arabic").unwrap(), LanguageRef::Arabic);
++    }
++
++    #[test]
++    fn from_str_accepts_mixed_case() {
++        assert_eq!(LanguageRef::from_str("English").unwrap(), LanguageRef::English);
++        assert_eq!(LanguageRef::from_str("ENGLISH").unwrap(), LanguageRef::English);
++        assert_eq!(LanguageRef::from_str("German").unwrap(), LanguageRef::German);
++    }
++
++    #[test]
++    fn from_str_rejects_invalid() {
++        assert!(LanguageRef::from_str("invalid").is_err());
++        assert!(LanguageRef::from_str("").is_err());
++    }
++
++    #[test]
++    fn lua_from_string_converts() {
++        let lua = mlua::Lua::new();
++        let val: mlua::Result<LanguageRef> = lua.load("'english'").eval();
++        assert_eq!(val.unwrap(), LanguageRef::English);
++    }
++
++    #[test]
++    fn lua_from_string_rejects_non_string() {
++        let lua = mlua::Lua::new();
++        let val: mlua::Result<LanguageRef> = lua.load("42").eval();
++        assert!(val.is_err());
++    }
++
++    #[test]
++    fn lua_from_string_rejects_invalid_language() {
++        let lua = mlua::Lua::new();
++        let val: mlua::Result<LanguageRef> = lua.load("'bogus'").eval();
++        assert!(val.is_err());
++    }
++}

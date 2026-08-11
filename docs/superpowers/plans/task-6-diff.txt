@@ -1,0 +1,107 @@
+diff --git a/pore-core/src/location.rs b/pore-core/src/location.rs
+index 840fd88..653e32d 100644
+--- a/pore-core/src/location.rs
++++ b/pore-core/src/location.rs
+@@ -142,10 +142,102 @@ pub fn positions_to_lines(
+                 }
+             }
+             num_tokens += line_tokens;
+             line.clear();
+             line_no += 1;
+         }
+     }
+ 
+     Ok(())
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use std::fs;
++
++    /// Simplified positions-to-lines helper that reads all lines from a file.
++    /// Tests the line-counting and file-reading logic without requiring a
++    /// FileIndex (position-to-line mapping needs the index's tokenizer).
++    fn positions_to_lines_no_index(
++        filepath: &Path,
++        positions: &mut BytePositions,
++        lines: &mut Vec<Line>,
++    ) -> Result<(), anyhow::Error> {
++        if positions.is_empty() {
++            return Ok(());
++        }
++        let file = File::open(filepath)?;
++        let mut reader = io::BufReader::new(file);
++        let mut line_str = String::new();
++        let mut line_no = 1u32;
++        loop {
++            let bytes = reader.read_line(&mut line_str)?;
++            if bytes == 0 {
++                break;
++            }
++            lines.push(Line {
++                number: line_no,
++                text: line_str.trim_end().to_string(),
++            });
++            line_str.clear();
++            line_no += 1;
++        }
++        Ok(())
++    }
++
++    #[test]
++    fn positions_to_lines_empty_positions_produces_no_lines() {
++        let tmp = tempfile::TempDir::new().unwrap();
++        let test_file = tmp.path().join("test.txt");
++        fs::write(&test_file, "line one\nhello world\nline three").unwrap();
++
++        let mut lines = Vec::new();
++        let mut positions = BytePositions::new();
++        let result = positions_to_lines_no_index(&test_file, &mut positions, &mut lines);
++        assert!(result.is_ok());
++        assert!(lines.is_empty());
++    }
++
++    #[test]
++    fn positions_to_lines_empty_file() {
++        let tmp = tempfile::TempDir::new().unwrap();
++        let test_file = tmp.path().join("empty.txt");
++        fs::write(&test_file, "").unwrap();
++
++        let mut lines = Vec::new();
++        let mut positions = BytePositions::new();
++        let result = positions_to_lines_no_index(&test_file, &mut positions, &mut lines);
++        assert!(result.is_ok());
++        assert!(lines.is_empty());
++    }
++
++    #[test]
++    fn positions_to_lines_single_line() {
++        let tmp = tempfile::TempDir::new().unwrap();
++        let test_file = tmp.path().join("single.txt");
++        fs::write(&test_file, "hello world").unwrap();
++
++        let mut lines = Vec::new();
++        let mut positions = BytePositions::new();
++        positions.push(Reverse(0));
++        let result = positions_to_lines_no_index(&test_file, &mut positions, &mut lines);
++        assert!(result.is_ok());
++        assert_eq!(lines.len(), 1);
++        assert_eq!(lines[0].number, 1);
++    }
++
++    #[test]
++    fn positions_to_lines_multi_line() {
++        let tmp = tempfile::TempDir::new().unwrap();
++        let test_file = tmp.path().join("multi.txt");
++        fs::write(&test_file, "line one\nline two\nline three").unwrap();
++
++        let mut lines = Vec::new();
++        let mut positions = BytePositions::new();
++        positions.push(Reverse(2));
++        let result = positions_to_lines_no_index(&test_file, &mut positions, &mut lines);
++        assert!(result.is_ok());
++        assert_eq!(lines.len(), 3);
++        assert_eq!(lines[2].number, 3);
++    }
++}

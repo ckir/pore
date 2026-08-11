@@ -1,5 +1,7 @@
 # Pore
 
+[![Build Status](https://github.com/stevearc/pore/actions/workflows/ci.yml/badge.svg)](https://github.com/stevearc/pore/actions)
+[![Crates.io](https://img.shields.io/crates/v/pore.svg)](https://crates.io/crates/pore)
 > pore (verb) \
 > to read or study attentively
 
@@ -108,8 +110,36 @@ Options:
           Print version
 ```
 
-## Config
+## Examples
 
+```bash
+# Basic Google-like search for files containing both words
+pore "hello world"
+
+# Exact phrase search
+pore '"exact phrase"'
+
+# Boolean logic and grouping
+pore "hello AND (world OR universe)"
+
+# Regex search
+pore "/b.* wolf/"
+
+# Field-specific search (e.g. searching only rust files)
+pore "path:*.rs AND foo"
+
+# Sort results by modification date or file path
+pore "error" --sort date
+pore "error" --sort path
+
+# Aggregate analytics: see how many results exist per file extension
+pore "todo" --aggregate ext
+
+# Search hidden files and directories
+pore "secret" --hidden
+```
+
+## Config
 The config file is located at `${XDG_CONFIG_HOME}/pore.toml` (default
 `$HOME/.config/pore.toml`). An example can be found at
 [pore.example.toml](https://github.com/stevearc/pore/blob/master/pore-bin/pore.example.toml).

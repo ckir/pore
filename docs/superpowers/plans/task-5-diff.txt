@@ -1,0 +1,225 @@
+diff --git a/pore-core/src/generic.rs b/pore-core/src/generic.rs
+index 8ca8afa..5155f84 100644
+--- a/pore-core/src/generic.rs
++++ b/pore-core/src/generic.rs
+@@ -88,22 +88,24 @@ impl Default for IndexOptions {
+ 
+ impl MetadataConfig for IndexOptions {
+     fn language(&self) -> LanguageRef {
+         self.language
+     }
+ }
+ 
+ /// A single search result from a [`GenericIndex`].
+ #[derive(Debug, Serialize)]
+ pub struct SearchResult {
+-    id: String,
+-    score: f32,
++    /// The document ID.
++    pub id: String,
++    /// The relevance score.
++    pub score: f32,
+ }
+ 
+ impl IntoLua for SearchResult {
+     fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
+         let tbl = lua.create_table()?;
+         tbl.set("id", self.id)?;
+         tbl.set("score", self.score)?;
+         Ok(mlua::Value::Table(tbl))
+     }
+ }
+@@ -245,10 +247,37 @@ impl GenericIndex {
+         for (score, doc_address) in top_docs {
+             if score > opts.threshold {
+                 let doc: tantivy::TantivyDocument = searcher.doc(doc_address)?;
+                 let id = doc.get_first(id_field).unwrap().as_str().unwrap().to_string();
+                 results.push(SearchResult { id, score });
+             }
+         }
+         Ok(results)
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use tempfile::TempDir;
++
++    #[test]
++    fn index_options_default() {
++        let opts = IndexOptions::default();
++        assert_eq!(opts.language, LanguageRef::English);
++    }
++
++    #[test]
++    fn search_options_default() {
++        let opts = SearchOptions::default();
++        assert_eq!(opts.limit, 1000);
++        assert_eq!(opts.threshold, 0.0);
++    }
++
++    #[test]
++    fn search_result_serialization() {
++        let result = SearchResult { id: "doc1".to_string(), score: 0.5 };
++        let json = serde_json::to_string(&result).unwrap();
++        assert!(json.contains("doc1"));
++        assert!(json.contains("0.5"));
++    }
++}
+diff --git a/pore-core/tests/generic_index_integration.rs b/pore-core/tests/generic_index_integration.rs
+new file mode 100644
+index 0000000..5995e86
+--- /dev/null
++++ b/pore-core/tests/generic_index_integration.rs
+@@ -0,0 +1,150 @@
++mod common;
++use common::*;
++
++use pore_core::{IndexOptions, SearchOptions};
++use std::collections::HashMap;
++
++#[test]
++fn add_and_search_documents() {
++    let (_tmp, mut index) = create_test_generic_index(
++        "id",
++        &["title", "body"],
++        IndexOptions::default(),
++    );
++
++    let mut doc1 = HashMap::new();
++    doc1.insert("id".to_string(), "1".to_string());
++    doc1.insert("title".to_string(), "Hello World".to_string());
++    doc1.insert("body".to_string(), "This is a test document".to_string());
++
++    let mut doc2 = HashMap::new();
++    doc2.insert("id".to_string(), "2".to_string());
++    doc2.insert("title".to_string(), "Goodbye World".to_string());
++    doc2.insert("body".to_string(), "Another document".to_string());
++
++    index.add_documents(vec![doc1, doc2]).unwrap();
++
++    use tantivy::query::QueryParser;
++    let query_parser = QueryParser::for_index(index.index(), index.get_text_fields());
++    let query = query_parser.parse_query("Hello").unwrap();
++    let results = index.search(&query, &SearchOptions::default()).unwrap();
++    assert_eq!(results.len(), 1);
++    assert_eq!(results[0].id, "1");
++}
++
++#[test]
++fn delete_documents_by_id() {
++    let (_tmp, mut index) = create_test_generic_index(
++        "id",
++        &["text"],
++        IndexOptions::default(),
++    );
++
++    let mut doc = HashMap::new();
++    doc.insert("id".to_string(), "1".to_string());
++    doc.insert("text".to_string(), "hello world".to_string());
++    index.add_documents(vec![doc]).unwrap();
++
++    index.delete_documents(vec!["1".to_string()]).unwrap();
++
++    use tantivy::query::QueryParser;
++    let query_parser = QueryParser::for_index(index.index(), index.get_text_fields());
++    let query = query_parser.parse_query("hello").unwrap();
++    let results = index.search(&query, &SearchOptions::default()).unwrap();
++    assert!(results.is_empty());
++}
++
++#[test]
++fn update_documents_replaces_fields() {
++    let (_tmp, mut index) = create_test_generic_index(
++        "id",
++        &["text"],
++        IndexOptions::default(),
++    );
++
++    let mut doc = HashMap::new();
++    doc.insert("id".to_string(), "1".to_string());
++    doc.insert("text".to_string(), "original content".to_string());
++    index.add_documents(vec![doc]).unwrap();
++
++    let mut updated = HashMap::new();
++    updated.insert("id".to_string(), "1".to_string());
++    updated.insert("text".to_string(), "updated content".to_string());
++    index.update_documents(vec![updated]).unwrap();
++
++    use tantivy::query::QueryParser;
++    let query_parser = QueryParser::for_index(index.index(), index.get_text_fields());
++    let query = query_parser.parse_query("original").unwrap();
++    let results = index.search(&query, &SearchOptions::default()).unwrap();
++    assert!(results.is_empty());
++
++    let query = query_parser.parse_query("updated").unwrap();
++    let results = index.search(&query, &SearchOptions::default()).unwrap();
++    assert_eq!(results.len(), 1);
++}
++
++#[test]
++fn delete_nonexistent_id_is_noop() {
++    let (_tmp, mut index) = create_test_generic_index(
++        "id",
++        &["text"],
++        IndexOptions::default(),
++    );
++    index.delete_documents(vec!["nonexistent".to_string()]).unwrap();
++}
++
++#[test]
++fn empty_index_returns_no_results() {
++    let (_tmp, index) = create_test_generic_index(
++        "id",
++        &["text"],
++        IndexOptions::default(),
++    );
++    use tantivy::query::QueryParser;
++    let query_parser = QueryParser::for_index(index.index(), index.get_text_fields());
++    let query = query_parser.parse_query("anything").unwrap();
++    let results = index.search(&query, &SearchOptions::default()).unwrap();
++    assert!(results.is_empty());
++}
++
++#[test]
++fn search_with_limit() {
++    let (_tmp, mut index) = create_test_generic_index(
++        "id",
++        &["text"],
++        IndexOptions::default(),
++    );
++
++    for i in 0..5 {
++        let mut doc = HashMap::new();
++        doc.insert("id".to_string(), i.to_string());
++        doc.insert("text".to_string(), format!("test document number {}", i));
++        index.add_documents(vec![doc]).unwrap();
++    }
++
++    let query_parser = tantivy::query::QueryParser::for_index(index.index(), index.get_text_fields());
++    let query = query_parser.parse_query("test").unwrap();
++    let opts = SearchOptions { limit: 2, ..Default::default() };
++    let results = index.search(&query, &opts).unwrap();
++    assert!(results.len() <= 2);
++}
++
++#[test]
++fn search_with_threshold() {
++    let (_tmp, mut index) = create_test_generic_index(
++        "id",
++        &["text"],
++        IndexOptions::default(),
++    );
++
++    let mut doc = HashMap::new();
++    doc.insert("id".to_string(), "1".to_string());
++    doc.insert("text".to_string(), "hello".to_string());
++    index.add_documents(vec![doc]).unwrap();
++
++    let query_parser = tantivy::query::QueryParser::for_index(index.index(), index.get_text_fields());
++    let query = query_parser.parse_query("hello").unwrap();
++    let opts = SearchOptions { threshold: 0.0, ..Default::default() };
++    let results = index.search(&query, &opts).unwrap();
++    assert_eq!(results.len(), 1);
++}

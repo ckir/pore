@@ -1,0 +1,251 @@
+diff --git a/pore-bin/Cargo.toml b/pore-bin/Cargo.toml
+index 667a945..738c4d7 100644
+--- a/pore-bin/Cargo.toml
++++ b/pore-bin/Cargo.toml
+@@ -5,21 +5,21 @@ edition = "2021"
+ 
+ readme = "README.md"
+ license = "MIT"
+ 
+ [dependencies]
+ anyhow = { version = "1.0.104", features = ["backtrace"] }
+ atty = "0.2.14"
+ chrono = { version = "0.4.45", features = ["serde"] }
+ clap = "4.6.6"
+ ignore = "0.4.33"
+-mlua = { version = "0.12.0", features = ["async", "macros", "module"] }
++mlua = { version = "0.12.0", features = ["async", "macros", "lua51", "vendored"] }
+ serde = "1.0.229"
+ serde_json = "1.0.151"
+ tantivy = "0.26.1"
+ termcolor = "1.4.1"
+ toml = "1.1.4+spec-1.1.0"
+ macros = { path = "../macros" }
+ pore-core = { path = "../pore-core" }
+ 
+ [dev-dependencies]
+ tempfile = "3.27.0"
+diff --git a/pore-bin/src/color_mode.rs b/pore-bin/src/color_mode.rs
+index 7e4f87f..afacdac 100644
+--- a/pore-bin/src/color_mode.rs
++++ b/pore-bin/src/color_mode.rs
+@@ -6,21 +6,21 @@
+ 
+ use std::str::FromStr;
+ 
+ use serde::Deserialize;
+ use termcolor::ColorChoice;
+ 
+ /// Controls when colored output is used.
+ ///
+ /// The four variants map directly to `termcolor::ColorChoice`. `Auto` checks whether
+ /// stdout is a TTY and falls back to no colors otherwise.
+-#[derive(Debug, Deserialize, Clone)]
++#[derive(Debug, Deserialize, Clone, PartialEq)]
+ #[serde(rename_all = "snake_case")]
+ pub enum ColorMode {
+     /// Auto-detect terminal support (falls back to `Never` if stdout is not a TTY).
+     Auto,
+     /// Always emit color codes regardless of destination.
+     Always,
+     /// Always emit color codes using ANSI escape sequences.
+     Ansi,
+     /// Never emit color codes.
+     Never,
+diff --git a/pore-bin/src/output.rs b/pore-bin/src/output.rs
+index 0c70f79..365c2fc 100644
+--- a/pore-bin/src/output.rs
++++ b/pore-bin/src/output.rs
+@@ -48,20 +48,21 @@ pub fn print_results(
+                 }
+             }
+         }
+     }
+     Ok(results.len() > 0)
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    use crate::color_mode::ColorMode;
+     use pore_core::{FileSearchResult, Line};
+     use std::path::PathBuf;
+ 
+     #[test]
+     fn print_results_json_format() {
+         let results = vec![FileSearchResult::new(
+             PathBuf::from("test.txt"),
+             0.5,
+             vec![Line {
+                 number: 1,
+diff --git a/pore-core/src/file.rs b/pore-core/src/file.rs
+index 72ef6b3..f4f1882 100644
+--- a/pore-core/src/file.rs
++++ b/pore-core/src/file.rs
+@@ -171,20 +171,25 @@ impl FileMetadata {
+ /// lines (omitted when [`FileSearchOptions::filename_only`] is true).
+ #[derive(Debug, Serialize)]
+ pub struct FileSearchResult {
+     file: PathBuf,
+     score: f32,
+     #[serde(skip_serializing_if = "Vec::is_empty")]
+     lines: Vec<Line>,
+ }
+ 
+ impl FileSearchResult {
++    /// Creates a new FileSearchResult.
++    pub fn new(file: PathBuf, score: f32, lines: Vec<Line>) -> Self {
++        Self { file, score, lines }
++    }
++
+     /// Returns the path to the matched file.
+     pub fn file(&self) -> &Path {
+         &self.file
+     }
+     /// Returns the relevance score.
+     pub fn score(&self) -> f32 {
+         self.score
+     }
+     /// Returns the matching lines in the file (may be empty).
+     pub fn lines(&self) -> &Vec<Line> {
+diff --git a/pore-lua/src/lib.rs b/pore-lua/src/lib.rs
+index 30a672e..ef9b6b1 100644
+--- a/pore-lua/src/lib.rs
++++ b/pore-lua/src/lib.rs
+@@ -1,21 +1,55 @@
++//! Lua bindings for `pore` — exposes Tantivy-backed indexing to Lua scripts.
++//!
++//! This crate builds a `pore_lua` Lua module that can be loaded from Lua via
++//! `require("pore_lua")`. It exports two constructors — `get_file_index` and `get_index` —
++//! which return userdata objects wrapping [`FileIndex`](pore_core::FileIndex) and
++//! [`GenericIndex`](pore_core::GenericIndex) respectively.
++//!
++//! # Module API
++//!
++//! ```lua
++//! -- Create a file index for a directory
++//! local idx = pore.get_file_index("/path/to/dir", "/path/to/cache", {threads = 4})
++//! idx:update()
++//! local results = idx:search("some query", {limit = 10})
++//! idx:delete()
++//!
++//! -- Create a generic index for custom documents
++//! local gidx = pore.get_index("id", {"title", "body"}, {}, "/path/to/cache")
++//! gidx:add_documents({{id = "1", title = "Hello", body = "world"}})
++//! gidx:search("hello", {})
++//! ```
++//!
++//! # Version info
++//!
++//! The module also exports a `version` table with `full`, `major`, `minor`, `patch`,
++//! and `pre` fields, populated from Cargo package metadata at build time.
++
+ use std::path::PathBuf;
+ use std::str::FromStr;
+ 
+ use mlua::prelude::*;
+ use mlua::{UserData, UserDataMethods};
+ use pore_core::{
+     FileIndex, FileIndexOptionsShape, FileSearchOptionsShape, GenericIndex, IndexOptionsShape,
+     SearchOptionsShape,
+ };
+ use tantivy::query::QueryParser;
+ 
++/// Entry point for the Lua module. Called when the shared library is loaded via
++/// `require("pore_lua")`.
++///
++/// Returns a Lua table with the following keys:
++/// - `version` — a table with `full`, `major`, `minor`, `patch`, `pre` fields.
++/// - `get_file_index(for_dir, cache_dir, config)` — creates or opens a [`FileIndex`].
++/// - `get_index(id_field, text_fields, config, cache_dir)` — creates or opens a [`GenericIndex`].
+ #[mlua::lua_module]
+ fn pore_lua(lua: &Lua) -> LuaResult<LuaTable> {
+     let exports = lua.create_table()?;
+ 
+     exports.set("version", make_version_tbl(lua)?)?;
+     let get_file_index = lua.create_function(
+         |_, (for_dir, cache_dir, config): (String, Option<String>, FileIndexOptionsShape)| {
+             let index = FileIndex::get_or_create(
+                 PathBuf::from_str(&for_dir)
+                     .map_err(|_| LuaError::RuntimeError(format!("Invalid path {}", for_dir)))?,
+@@ -59,29 +93,33 @@ fn pore_lua(lua: &Lua) -> LuaResult<LuaTable> {
+             )
+             .map_err(|e| LuaError::RuntimeError(format!("Error creating index {:?}", e)))?;
+             Ok(GenericIndexLua { index })
+         },
+     )?;
+     exports.set("get_index", get_index)?;
+ 
+     Ok(exports)
+ }
+ 
++/// Sets a key in a Lua table if the corresponding environment variable is non-empty.
+ macro_rules! set_nonempty_env {
+     ($tbl:ident, $key:literal, $env_key:literal) => {{
+         let value = env!($env_key);
+         if !value.is_empty() {
+             $tbl.set($key, value)?;
+         }
+     }};
+ }
+ 
++/// Lua userdata wrapping a [`FileIndex`](pore_core::FileIndex).
++///
++/// Provides methods: `update(rebuild?)`, `delete()`, `search(query, opts)`, and `__tostring`.
+ #[derive(Debug, Clone)]
+ struct FileIndexLua {
+     index: FileIndex,
+ }
+ 
+ impl UserData for FileIndexLua {
+     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
+         methods.add_method_mut("update", |_, this, (rebuild,): (Option<bool>,)| {
+             this.index
+                 .update(rebuild.unwrap_or(false))
+@@ -108,20 +146,24 @@ impl UserData for FileIndexLua {
+                     .map_err(|e| LuaError::RuntimeError(e.to_string()))?;
+                 Ok(results)
+             },
+         );
+         methods.add_method("__tostring", |_, this: &FileIndexLua, _: ()| {
+             Ok(format!("{}", this.index))
+         });
+     }
+ }
+ 
++/// Lua userdata wrapping a [`GenericIndex`](pore_core::GenericIndex).
++///
++/// Provides methods: `delete()`, `delete_documents(doc_ids)`, `update_documents(docs)`,
++/// `add_documents(docs)`, `search(query, opts)`, and `__tostring`.
+ #[derive(Debug, Clone)]
+ struct GenericIndexLua {
+     index: GenericIndex,
+ }
+ 
+ impl UserData for GenericIndexLua {
+     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
+         methods.add_method_mut("delete", |_, this, _: ()| {
+             this.index
+                 .delete()
+@@ -166,20 +208,21 @@ impl UserData for GenericIndexLua {
+                     .map_err(|e| LuaError::RuntimeError(e.to_string()))?;
+                 Ok(results)
+             },
+         );
+         methods.add_method("__tostring", |_, this: &GenericIndexLua, _: ()| {
+             Ok(format!("{:?}", this.index))
+         });
+     }
+ }
+ 
++/// Creates a Lua table with version metadata from Cargo environment variables.
+ fn make_version_tbl(lua: &Lua) -> LuaResult<LuaTable> {
+     let tbl = lua.create_table()?;
+ 
+     set_nonempty_env!(tbl, "full", "CARGO_PKG_VERSION");
+     set_nonempty_env!(tbl, "major", "CARGO_PKG_VERSION_MAJOR");
+     set_nonempty_env!(tbl, "minor", "CARGO_PKG_VERSION_MINOR");
+     set_nonempty_env!(tbl, "patch", "CARGO_PKG_VERSION_PATCH");
+     set_nonempty_env!(tbl, "pre", "CARGO_PKG_VERSION_PRE");
+ 
+     Ok(tbl)

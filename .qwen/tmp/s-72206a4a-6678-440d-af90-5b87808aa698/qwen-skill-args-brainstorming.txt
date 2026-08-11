@@ -1,0 +1,1 @@
+Replace the current CI actions with new to create releases containing pre-compiled binaries for Windows/Linux/Macos (nightly is not required anymore)y
