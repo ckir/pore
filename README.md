@@ -17,97 +17,63 @@ string, use ripgrep. If you want something more like a Google search, use pore.
 ```
 Usage:
 
-Arguments:
-  [query]
-
-
-  [dir]
-
+Commands:
+  search  Full-text search a directory
+  eval    Evaluate a jq filter on JSON input (reads stdin or files)
+  help    Print this message or the help of the given subcommand(s)
 
 Options:
-  -i, --index <index>
-          Use the specified index for querying (must be specified in the config file)
+  -h, --help     Print help
+  -V, --version  Print version
 
-  -u, --update
-          Update the index before searching (the default)
+### `pore search`
 
-      --no-update
-          Do not update the index before performing the query
+Usage: pore search [OPTIONS] [QUERY] [DIR]
 
-      --in-memory
-          Do not store the text index on disk (will have to rebuild every time)
+Arguments:
+  [QUERY]  The search query
+  [DIR]    The directory to search in
 
-      --no-memory
-          Force the index to be saved to disk (overrides --in-memory)
+Options:
+  -i, --index <INDEX_NAME>     Use the specified index for querying (must be specified in the config file)
+  -u, --update                 Update the index before searching (the default)
+      --no-update              Do not update the index before performing the query
+      --in-memory              Do not store the text index on disk (will have to rebuild every time)
+      --no-memory              Force the index to be saved to disk (overrides --in-memory)
+      --hidden                 Search hidden files and directories
+      --no-hidden              Ignore hidden files and directories (overrides --hidden)
+  -L, --follow                 Follow symbolic links
+      --no-follow              Don't follow symbolic links (overrides --follow)
+      --language <LANGUAGE>    The language to use for parsing files
+  -g, --glob <GLOB>...         Include or exclude files and directories for searching that match the given glob
+      --oglob <OGLOB>...       Only search files that match this glob
+      --glob-case-insensitive  Patterns passed to --glob and --oglob will be matched case-insensitively
+  -j, --threads <THREADS>      The approximate number of threads to use (0 = auto)
+      --rebuild                Force rebuild the index before searching
+      --limit <LIMIT>          Maximum number of files to return
+      --threshold <THRESHOLD>  Minimum score threshold for results
+      --json                   Print the results as JSON
+  -l, --files-with-matches     Print out the files that match the search (not the matching lines)
+      --no-ignore              Don't respect .gitignore files
+      --color <COLOR>          Controls when to use colors (never, auto, always, ansi) [possible values: never, auto, always, ansi]
+  -s, --sort <SORT>            Sort results by field (date, path). Defaults to relevance score
+      --aggregate <AGGREGATE>  Aggregate results by field (e.g. ext)
+      --jq <JQ_EXPR>           Post-process the JSON output with a jq filter expression
+      --files                  Print out the files that would be searched (do not perform the search)
+      --indexes                Print out the indexes that would be used (do not perform the search)
+      --delete                 Delete the cached index files for the directory (if any)
+  -h, --help                   Print help
 
-      --hidden
-          Search hidden files and directories
+### `pore eval`
 
-      --no-hidden
-          Ignore hidden files and directories (overrides --hidden)
+Usage: pore eval <FILTER> [FILES]...
 
-  -L, --follow
-          Follow symbolic links
+Arguments:
+  <FILTER>    The jq filter expression to evaluate
+  [FILES]...  Input files (reads stdin if none provided)
 
-      --no-follow
-          Don't follow symbolic links (overrides --follow)
-
-      --language <language>
-          The language to use for parsing files
-
-  -g, --glob <glob>...
-          Include or exclude files and directories for searching that match the given glob. This always overrides any other ignore logic. Multiple glob flags may be used. Precede a glob with a ! to exclude it.
-
-      --oglob <oglob>...
-          Only search files that match this glob. Files that do not match any of these globs will be ignored.
-
-      --glob-case-insensitive
-          Patterns passed to --glob and --oglob will be matched in a case-insentive way.
-
-  -j, --threads <threads>
-          The approximate number of threads to use. A value of 0 (which is the default) will choose the thread count using heuristics.
-
-      --rebuild
-          Force rebuild the index before searching
-
-      --limit <limit>
-          Maximum number of files to return
-
-      --threshold <threshold>
-          Minimum score threshold for results
-
-      --json
-          Print the results as json
-
-  -l, --files-with-matches
-          Print out the files that match the search (not the matching lines).
-
-      --no-ignore
-          Don't respect .gitignore files
-
-      --color <color>
-          This flag controls when to use colors. The default setting is auto, which will try to guess when to use colors.
-             The possible values for this flag are:
-
-                 never    Colors will never be used.
-                 auto     Auto-detect if the terminal supports colors (default).
-                 always   Colors will always be used regardless of where output is sent.
-                 ansi     Like 'always', but emits ANSI escapes (even in a Windows console).
-
-      --files
-          Print out the files that would be searched (do not perform the search)
-
-      --indexes
-          print out the indexes that would be used (do not perform the search)
-
-      --delete
-          Delete the cached index files for the directory (if any)
-
-  -h, --help
-          Print help (see a summary with '-h')
-
-  -V, --version
-          Print version
+Options:
+  -h, --help  Print help
 ```
 
 ## Examples
