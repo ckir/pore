@@ -121,29 +121,29 @@ Options:
 
 ```bash
 # Basic Google-like search for files containing both words
-pore "hello world"
+pore search "hello world"
 
 # Exact phrase search
-pore '"exact phrase"'
+pore search '"exact phrase"'
 
 # Boolean logic and grouping
-pore "hello AND (world OR universe)"
+pore search "hello AND (world OR universe)"
 
 # Regex search
-pore "/b.* wolf/"
+pore search "/b.* wolf/"
 
 # Field-specific search (e.g. searching only rust files)
-pore "path:*.rs AND foo"
+pore search "path:*.rs AND foo"
 
 # Sort results by modification date or file path
-pore "error" --sort date
-pore "error" --sort path
+pore search "error" --sort date
+pore search "error" --sort path
 
 # Aggregate analytics: see how many results exist per file extension
-pore "todo" --aggregate ext
+pore search "todo" --aggregate ext
 
 # Search hidden files and directories
-pore "secret" --hidden
+pore search "secret" --hidden
 ```
 
 ## Config
