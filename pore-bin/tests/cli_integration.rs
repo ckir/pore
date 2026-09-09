@@ -107,6 +107,43 @@ fn json_output_flag() {
 }
 
 #[test]
+fn json_output_defaults_to_lines_not_snippets() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
+
+    let (mut cmd, _home) = pore_with_home();
+    cmd.arg("search")
+        .arg("--in-memory")
+        .arg("--rebuild")
+        .arg("--json")
+        .arg("hello")
+        .arg(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"lines\""))
+        .stdout(predicate::str::contains("\"snippets\"").not());
+}
+
+#[test]
+fn snippets_flag_switches_json_to_snippets() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
+
+    let (mut cmd, _home) = pore_with_home();
+    cmd.arg("search")
+        .arg("--in-memory")
+        .arg("--rebuild")
+        .arg("--json")
+        .arg("--snippets")
+        .arg("hello")
+        .arg(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"snippets\""))
+        .stdout(predicate::str::contains("\"lines\"").not());
+}
+
+#[test]
 fn filename_only_flag() {
     let tmp = tempfile::tempdir().unwrap();
     fs::write(

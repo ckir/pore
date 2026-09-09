@@ -58,3 +58,8 @@ filename_only = false
 
 # Sort results by a field. Options: "date", "path". If not provided, sorts by relevance score.
 sort = "score"
+
+# Show Tantivy-generated snippets instead of the matching lines.
+# Snippets are a condensed extract with the match highlighted; lines carry
+# 1-based line numbers. Only one of the two is ever produced.
+snippets = false

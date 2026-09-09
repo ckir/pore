@@ -93,6 +93,7 @@ fn search_filename_only_omits_lines() {
     };
     let results = search_file_index(&index, "hello", &opts);
     assert_eq!(results.len(), 1);
+    assert!(results[0].lines().is_empty());
     assert!(results[0].snippets().is_empty());
 }
 
@@ -106,9 +107,67 @@ fn search_returns_matching_lines() {
     let opts = FileSearchOptions::default();
     let results = search_file_index(&index, "hello", &opts);
     assert_eq!(results.len(), 1);
+    let lines = results[0].lines();
+    assert!(!lines.is_empty());
+    assert!(lines.iter().any(|l| l.text.contains("hello match")));
+}
+
+#[test]
+fn search_default_returns_lines_and_no_snippets() {
+    let (_tmp, mut index) = create_test_file_index(
+        &[("file1.txt", "line one\nhello match\nline three")],
+        FileIndexOptions::default(),
+    );
+    index.update(false).unwrap();
+    let results = search_file_index(&index, "hello", &FileSearchOptions::default());
+    assert_eq!(results.len(), 1);
+    assert!(
+        !results[0].lines().is_empty(),
+        "lines is the default output shape"
+    );
+    assert!(
+        results[0].snippets().is_empty(),
+        "snippets must stay empty unless opted in"
+    );
+}
+
+#[test]
+fn search_returns_snippets_when_opted_in() {
+    let (_tmp, mut index) = create_test_file_index(
+        &[("file1.txt", "line one\nhello match\nline three")],
+        FileIndexOptions::default(),
+    );
+    index.update(false).unwrap();
+    let opts = FileSearchOptions {
+        snippets: true,
+        ..Default::default()
+    };
+    let results = search_file_index(&index, "hello", &opts);
+    assert_eq!(results.len(), 1);
     let snippets = results[0].snippets();
-    assert!(!snippets.is_empty());
+    assert!(!snippets.is_empty(), "opting in must produce snippets");
     assert!(snippets.iter().any(|s| s.contains("hello")));
+    assert!(
+        results[0].lines().is_empty(),
+        "lines must stay empty when snippets are requested"
+    );
+}
+
+#[test]
+fn search_line_numbers_are_one_based() {
+    let (_tmp, mut index) = create_test_file_index(
+        &[("file1.txt", "line one\nhello match\nline three")],
+        FileIndexOptions::default(),
+    );
+    index.update(false).unwrap();
+    let results = search_file_index(&index, "hello", &FileSearchOptions::default());
+    assert_eq!(results.len(), 1);
+    let lines = results[0].lines();
+    let hit = lines
+        .iter()
+        .find(|l| l.text.contains("hello match"))
+        .expect("the matching line is reported");
+    assert_eq!(hit.number, 2, "second line of the file is line 2, not 1");
 }
 
 #[test]

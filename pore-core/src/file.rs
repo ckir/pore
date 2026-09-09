@@ -18,6 +18,8 @@ use crate::common::IndexMetadata;
 use crate::common::MetadataConfig;
 use crate::common::METADATA_FILE;
 use crate::language::LanguageRef;
+use crate::location;
+use crate::location::DocResult;
 
 use chrono::DateTime;
 use chrono::Local;
@@ -137,6 +139,8 @@ pub struct FileSearchOptions {
     pub root_dir: Option<String>,
     /// Sort results by field (options: date, path). Defaults to relevance score.
     pub sort: Option<String>,
+    /// When true, return Tantivy-generated snippets instead of matching lines.
+    pub snippets: bool,
 }
 
 impl Default for FileSearchOptions {
@@ -147,6 +151,7 @@ impl Default for FileSearchOptions {
             filename_only: false,
             root_dir: None,
             sort: None,
+            snippets: false,
         }
     }
 }
@@ -194,24 +199,58 @@ impl FileMetadata {
     }
 }
 
+/// A single matching line within a file.
+#[derive(Debug, Serialize)]
+pub struct Line {
+    /// 1-based line number.
+    pub number: u32,
+    /// The line text (trailing newline stripped).
+    pub text: String,
+}
+
+impl IntoLua for Line {
+    fn into_lua(self, lua: &mlua::Lua) -> mlua::Result<mlua::Value> {
+        let tbl = lua.create_table()?;
+        tbl.set("number", self.number)?;
+        tbl.set("text", self.text)?;
+        Ok(mlua::Value::Table(tbl))
+    }
+}
+
 /// A single search result for a file.
 ///
-/// Contains the file path, relevance score, and optionally the matching
-/// snippets (omitted when [`FileSearchOptions::filename_only`] is true).
+/// Contains the file path, relevance score, and the match detail. By default the
+/// detail is [`Line`]s carrying 1-based line numbers; when
+/// [`FileSearchOptions::snippets`] is set it is Tantivy-generated snippets instead.
+/// Both are omitted when [`FileSearchOptions::filename_only`] is true, and only one
+/// of the two is ever populated.
 #[derive(Debug, Serialize)]
 pub struct FileSearchResult {
     file: PathBuf,
     score: f32,
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    lines: Vec<Line>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     snippets: Vec<String>,
 }
 
 impl FileSearchResult {
-    /// Creates a new FileSearchResult.
-    pub fn new(file: PathBuf, score: f32, snippets: Vec<String>) -> Self {
+    /// Creates a new FileSearchResult carrying matching lines.
+    pub fn new(file: PathBuf, score: f32, lines: Vec<Line>) -> Self {
         Self {
             file,
             score,
+            lines,
+            snippets: Vec::new(),
+        }
+    }
+
+    /// Creates a new FileSearchResult carrying Tantivy snippets instead of lines.
+    pub fn with_snippets(file: PathBuf, score: f32, snippets: Vec<String>) -> Self {
+        Self {
+            file,
+            score,
+            lines: Vec::new(),
             snippets,
         }
     }
@@ -224,7 +263,11 @@ impl FileSearchResult {
     pub fn score(&self) -> f32 {
         self.score
     }
-    /// Returns the matching snippets in the file (may be empty).
+    /// Returns the matching lines in the file (may be empty).
+    pub fn lines(&self) -> &Vec<Line> {
+        &self.lines
+    }
+    /// Returns the matching snippets in the file (empty unless snippets were requested).
     pub fn snippets(&self) -> &Vec<String> {
         &self.snippets
     }
@@ -235,6 +278,9 @@ impl IntoLua for FileSearchResult {
         let tbl = lua.create_table()?;
         tbl.set("file", self.file.to_string_lossy())?;
         tbl.set("score", self.score)?;
+        if !self.lines.is_empty() {
+            tbl.set("lines", self.lines)?;
+        }
         if !self.snippets.is_empty() {
             tbl.set("snippets", self.snippets)?;
         }
@@ -430,15 +476,41 @@ impl FileIndex {
         let process_docs = |doc_addresses: Vec<tantivy::DocAddress>,
                             scores: Vec<f32>|
          -> Result<Vec<FileSearchResult>, anyhow::Error> {
-            let snippet_generator =
-                tantivy::snippet::SnippetGenerator::create(&searcher, query, *self.contents())?;
-            let mut res = Vec::new();
-            for (i, doc_address) in doc_addresses.into_iter().enumerate() {
+            let mut doc_results = Vec::new();
+            for (i, address) in doc_addresses.into_iter().enumerate() {
                 let score = scores.get(i).copied().unwrap_or(0.0);
+                // Sorted collectors report a score of 0.0, so the threshold only
+                // applies to relevance-ordered results.
                 if opts.sort.is_none() && score <= opts.threshold {
                     continue;
                 }
-                let doc: tantivy::TantivyDocument = searcher.doc(doc_address)?;
+                doc_results.push(DocResult { score, address });
+            }
+
+            let want_detail = !opts.filename_only;
+            let snippet_generator = if want_detail && opts.snippets {
+                Some(tantivy::snippet::SnippetGenerator::create(
+                    &searcher,
+                    query,
+                    *self.contents(),
+                )?)
+            } else {
+                None
+            };
+            let mut position_map = if want_detail && !opts.snippets {
+                Some(location::get_search_results(
+                    self,
+                    query,
+                    &searcher,
+                    &doc_results,
+                )?)
+            } else {
+                None
+            };
+
+            let mut res = Vec::new();
+            for doc_result in doc_results {
+                let doc: tantivy::TantivyDocument = searcher.doc(doc_result.address)?;
                 let filepath = doc.get_first(*self.filepath()).unwrap().as_str().unwrap();
                 let fullpath = if let Some(root_dir) = opts.root_dir.as_deref() {
                     PathBuf::from(root_dir).join(filepath)
@@ -446,18 +518,27 @@ impl FileIndex {
                     PathBuf::from(self.meta.for_dir()).join(filepath)
                 };
 
-                let mut snippets = Vec::new();
-                if !opts.filename_only {
-                    let snippet = snippet_generator.snippet_from_doc(&doc);
+                if let Some(generator) = &snippet_generator {
+                    let snippet = generator.snippet_from_doc(&doc);
+                    let mut snippets = Vec::new();
                     if !snippet.fragment().is_empty() {
                         snippets.push(snippet.to_html());
                     }
+                    res.push(FileSearchResult::with_snippets(
+                        fullpath,
+                        doc_result.score,
+                        snippets,
+                    ));
+                } else {
+                    let mut lines = Vec::new();
+                    if let Some(position_data) = position_map
+                        .as_mut()
+                        .and_then(|map| map.get_mut(&doc_result.address))
+                    {
+                        location::positions_to_lines(self, &fullpath, position_data, &mut lines)?;
+                    }
+                    res.push(FileSearchResult::new(fullpath, doc_result.score, lines));
                 }
-                res.push(FileSearchResult {
-                    file: fullpath,
-                    score,
-                    snippets,
-                });
             }
             Ok(res)
         };

@@ -104,6 +104,7 @@ Options:
       --no-ignore              Don't respect .gitignore files
       --color <COLOR>          Controls when to use colors (never, auto, always, ansi) [possible values: never, auto, always, ansi]
   -s, --sort <SORT>            Sort results by field (date, path). Defaults to relevance score
+      --snippets               Show Tantivy-generated snippets instead of matching lines
       --aggregate <AGGREGATE>  Aggregate results by field (e.g. ext)
       --jq <JQ_EXPR>           Post-process the JSON output with a jq filter expression
       --files                  Print out the files that would be searched (do not perform the search)
@@ -144,6 +145,9 @@ pore search "path:*.rs AND foo"
 # Sort results by modification date or file path
 pore search "error" --sort date
 pore search "error" --sort path
+
+# Show condensed snippets with the match highlighted, instead of full matching lines
+pore search "error" --snippets
 
 # Aggregate analytics: see how many results exist per file extension
 pore search "todo" --aggregate ext

@@ -175,6 +175,10 @@ pub struct SearchArgs {
     #[arg(short = 's', long)]
     pub sort: Option<String>,
 
+    /// Show Tantivy-generated snippets instead of matching lines
+    #[arg(long)]
+    pub snippets: bool,
+
     /// Aggregate results by field (e.g. ext)
     #[arg(long)]
     pub aggregate: Option<String>,
@@ -274,6 +278,9 @@ pub fn build_search_config(args: SearchArgs) -> Result<GlobalConfig, anyhow::Err
     }
     if let Some(ref sort) = args.sort {
         search.sort = Some(Some(sort.clone()));
+    }
+    if args.snippets {
+        search.snippets = Some(true);
     }
     if args.files_with_matches {
         search.filename_only = Some(true);

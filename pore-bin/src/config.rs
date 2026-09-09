@@ -55,6 +55,8 @@ pub struct SearchConfig {
     pub in_memory: bool,
     /// Sort results by field (options: date, path). Defaults to relevance score.
     pub sort: Option<String>,
+    /// Return Tantivy-generated snippets instead of matching lines.
+    pub snippets: bool,
 }
 
 impl Default for SearchConfig {
@@ -69,6 +71,7 @@ impl Default for SearchConfig {
             update: true,
             in_memory: false,
             sort: None,
+            snippets: false,
         }
     }
 }
@@ -84,6 +87,7 @@ impl SearchConfig {
             filename_only: self.filename_only,
             root_dir: Some(search_dir.to_string()),
             sort: self.sort.clone(),
+            snippets: self.snippets,
         }
     }
 }
