@@ -251,3 +251,44 @@ fn file_walker_respects_glob_exclude() {
     let results = search_file_index(&index, "text", &FileSearchOptions::default());
     assert!(results.is_empty());
 }
+
+#[test]
+fn ext_fast_field_is_populated_per_document() {
+    // The `ext` field is indexed for future aggregation support; nothing reads it
+    // yet, so this pins that it is actually written per document rather than left
+    // empty. A TermQuery on it must select exactly the file with that extension.
+    use tantivy::collector::TopDocs;
+    use tantivy::query::TermQuery;
+    use tantivy::schema::{IndexRecordOption, Value};
+    use tantivy::Term;
+
+    let (_tmp, mut index) = create_test_file_index(
+        &[
+            ("keep.rs", "rust content here"),
+            ("skip.txt", "text content here"),
+        ],
+        FileIndexOptions::default(),
+    );
+    index.update(false).unwrap();
+
+    let schema_ext = index.index().schema().get_field("ext").unwrap();
+    let filepath = index.index().schema().get_field("filepath").unwrap();
+    let reader = index.index().reader().unwrap();
+    let searcher = reader.searcher();
+
+    let query = TermQuery::new(
+        Term::from_field_text(schema_ext, "rs"),
+        IndexRecordOption::Basic,
+    );
+    let hits = searcher
+        .search(&query, &TopDocs::with_limit(10).order_by_score())
+        .unwrap();
+    assert_eq!(hits.len(), 1, "exactly one .rs file was indexed");
+
+    let doc: tantivy::TantivyDocument = searcher.doc(hits[0].1).unwrap();
+    let path = doc.get_first(filepath).unwrap().as_str().unwrap();
+    assert!(
+        path.ends_with("keep.rs"),
+        "the ext:rs hit must be keep.rs, got {path}"
+    );
+}
