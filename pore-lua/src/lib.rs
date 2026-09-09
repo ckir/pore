@@ -31,6 +31,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use mlua::prelude::*;
+use mlua::LuaSerdeExt;
 use mlua::{UserData, UserDataMethods};
 use pore_core::{
     FileIndex, FileIndexOptionsShape, FileSearchOptionsShape, GenericIndex, IndexOptionsShape,
@@ -74,11 +75,12 @@ fn pore_lua(lua: &Lua) -> LuaResult<LuaTable> {
 
     let get_index = lua.create_function(
         |_,
-         (id_field, text_fields, config, cache_dir): (
+         (id_field, text_fields, config, cache_dir, add_json_field): (
             String,
             Vec<String>,
             IndexOptionsShape,
             Option<String>,
+            Option<bool>,
         )| {
             let index = GenericIndex::get_or_create(
                 &id_field,
@@ -93,6 +95,7 @@ fn pore_lua(lua: &Lua) -> LuaResult<LuaTable> {
                     })
                     .transpose()?
                     .as_deref(),
+                add_json_field.unwrap_or(false),
             )
             .map_err(|e| LuaError::RuntimeError(format!("Error creating index {:?}", e)))?;
             Ok(GenericIndexLua { index })
@@ -148,6 +151,26 @@ impl UserData for FileIndexLua {
                     .search(&query, &opts.into())
                     .map_err(|e| LuaError::RuntimeError(e.to_string()))?;
                 Ok(results)
+            },
+        );
+        methods.add_method(
+            "aggregate",
+            |lua, this, (query_str, opts): (String, FileSearchOptionsShape)| {
+                let query_parser = tantivy::query::QueryParser::for_index(
+                    this.index.index(),
+                    vec![*this.index.contents()],
+                );
+                let query = query_parser
+                    .parse_query(&query_str)
+                    .map_err(|_| mlua::Error::RuntimeError("Error parsing query".to_string()))?;
+
+                let json_val = this
+                    .index
+                    .aggregate(&query, &opts.into())
+                    .map_err(|e| mlua::Error::RuntimeError(e.to_string()))?;
+
+                lua.to_value(&json_val)
+                    .map_err(|e| mlua::Error::RuntimeError(e.to_string()))
             },
         );
         methods.add_method("__tostring", |_, this: &FileIndexLua, _: ()| {
@@ -268,6 +291,36 @@ mod tests {
     }
 
     #[test]
+    fn lua_script_can_aggregate_by_ext() {
+        // Exercises the binding through a real Lua chunk rather than calling the Rust
+        // method directly, so a broken userdata method signature or conversion fails here.
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("a.rs"), "hello rust").unwrap();
+        fs::write(tmp.path().join("b.rs"), "hello again").unwrap();
+        fs::write(tmp.path().join("c.md"), "hello docs").unwrap();
+
+        let opts = FileIndexOptions::default();
+        let index = FileIndex::get_or_create(tmp.path(), Some(tmp.path()), &opts).unwrap();
+        index.clone().update(false).unwrap();
+
+        let lua = mlua::Lua::new();
+        lua.globals().set("idx", FileIndexLua { index }).unwrap();
+        let count: u64 = lua
+            .load(
+                r#"
+                local res = idx:aggregate("hello", { aggregate = "ext" })
+                for _, b in ipairs(res.ext.buckets) do
+                    if b.key == "rs" then return b.doc_count end
+                end
+                return 0
+            "#,
+            )
+            .eval()
+            .unwrap();
+        assert_eq!(count, 2, "two .rs files match the query");
+    }
+
+    #[test]
     fn file_index_lua_tostring() {
         let tmp = TempDir::new().unwrap();
         let opts = FileIndexOptions::default();
@@ -302,11 +355,15 @@ mod tests {
     #[test]
     fn file_search_options_shape_from_lua_table() {
         let lua = Lua::new();
-        let opts: FileSearchOptionsShape =
-            lua.load("{ limit = 5, threshold = 0.3 }").eval().unwrap();
+        let opts: FileSearchOptionsShape = lua
+            .load("{ limit = 5, threshold = 0.3, sort = 'date', aggregate = 'ext' }")
+            .eval()
+            .unwrap();
         assert_eq!(opts.limit, Some(5));
         assert_eq!(opts.threshold, Some(0.3));
         assert_eq!(opts.filename_only, None);
+        assert_eq!(opts.sort, Some(Some("date".to_string())));
+        assert_eq!(opts.aggregate, Some(Some("ext".to_string())));
     }
 
     #[test]
