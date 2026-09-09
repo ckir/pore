@@ -59,7 +59,8 @@ impl Document for PoreFileEntry {
         [
             (self.filepath_field, self.filepath.as_str()),
             (self.contents_field, self.contents.as_str()),
-        ].into_iter()
+        ]
+        .into_iter()
     }
 }
 
@@ -385,7 +386,7 @@ impl FileIndex {
                                 filepath_field: self.filepath,
                                 filepath: filepath_str,
                                 contents_field: self.contents,
-                                contents: contents,
+                                contents,
                             };
                             let _ = index_writer.add_document(doc);
                         }

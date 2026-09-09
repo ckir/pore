@@ -135,13 +135,16 @@ fn search_with_threshold() {
 #[test]
 fn test_regex_query() {
     let (_tmp, mut index) = create_test_generic_index("id", &["body"], IndexOptions::default());
-    
+
     let mut doc = std::collections::HashMap::new();
     doc.insert("id".to_string(), "1".to_string());
     doc.insert("body".to_string(), "The big bad wolf".to_string());
     index.add_documents(vec![doc]).unwrap();
-    
-    let mut query_parser = tantivy::query::QueryParser::for_index(index.index(), vec![index.index().schema().get_field("body").unwrap()]);
+
+    let mut query_parser = tantivy::query::QueryParser::for_index(
+        index.index(),
+        vec![index.index().schema().get_field("body").unwrap()],
+    );
     query_parser.allow_regexes();
     let query = query_parser.parse_query("body:/b.*/").unwrap();
     let opts = SearchOptions::default();
