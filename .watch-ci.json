@@ -1,0 +1,15 @@
+{
+  "branch": "master",
+  "workflow": null,
+  "max_retries": 3,
+  "max_total_minutes": 30,
+  "preflight_job": "validate",
+  "paths_denylist": [
+    ".github/workflows/",
+    "tsconfig",
+    "package.json",
+    "pnpm-lock.yaml",
+    "Cargo.toml",
+    "Cargo.lock"
+  ]
+}
