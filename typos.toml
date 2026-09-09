@@ -1,0 +1,22 @@
+# Configuration for `typos` (typos-cli).
+# Run locally with `typos` to check, or `typos -w` to fix in place.
+
+[files]
+extend-exclude = [
+  # Captured diff/plan artifacts. These are a record of what the code said at the
+  # time, so correcting a typo inside them would falsify the record rather than fix
+  # anything. The live source they were taken from is already spelled correctly.
+  "docs/superpowers/plans/*.txt",
+  # Not ours.
+  "Cargo.lock",
+  ".worktrees/",
+]
+
+[default]
+# Identifiers come from dependencies and Tantivy's schema vocabulary; checking prose
+# and comments catches the typos that actually reach a user.
+extend-ignore-identifiers-re = []
+
+[default.extend-words]
+# Tantivy/Lua domain terms that are not English words.
+ser = "ser"

@@ -1,0 +1,33 @@
+# Configuration for `cargo release`.
+#
+# Usage:  cargo release patch --workspace      (dry run -- prints what it WOULD do)
+#         cargo release patch --workspace -x   (execute)
+#
+# All four crates have moved in lockstep so far (v0.2.0, v0.2.1, v0.2.2), so the
+# version stays shared and a single `v{version}` tag is pushed.
+
+# Keep macros / pore-core / pore-bin / pore-lua on one version, as every release so far has.
+shared-version = true
+
+# One tag for the whole workspace, not one per crate. It must stay `v{version}`:
+# .github/workflows/release.yml and ci.yml both trigger on the `v*` tag pattern, so a
+# per-crate tag like `pore-core-v0.2.3` would not fire either workflow.
+tag-name = "v{{version}}"
+tag-message = "Release {{version}}"
+consolidate-commits = true
+pre-release-commit-message = "chore: bump all crates to v{{version}}"
+
+# Pushing the tag is what triggers the release workflow, so let cargo-release do it.
+push = true
+
+# None of these crates are published to crates.io (no `publish` key is set anywhere and
+# no release has ever gone out), and the release workflow builds the artifacts itself.
+publish = false
+
+# Refuse to release from a dirty tree or a non-default branch.
+allow-branch = ["master"]
+
+# NOTE: there is deliberately no [[pre-release-replacements]] here. Replacement paths
+# resolve relative to EACH package root, and only the workspace root has a CHANGELOG.md,
+# so a rule here fails with "unable to find macros/CHANGELOG.md". The changelog rule
+# lives in pore-bin/release.toml instead, so it runs exactly once.

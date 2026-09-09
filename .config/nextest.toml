@@ -1,0 +1,25 @@
+# Configuration for `cargo nextest`.
+#
+# NOTE: nextest does not run doctests -- it has no runner for them. This repo has a
+# doctest (pore-core/src/language.rs, LanguageRef), so `cargo nextest run` alone is a
+# WEAKER gate than `cargo test`. Anywhere nextest replaces `cargo test`, pair it with
+# `cargo test --doc`. CI does exactly that.
+
+[profile.default]
+# Surface every failure in one run rather than stopping at the first.
+fail-fast = false
+# The file-index tests build real Tantivy indexes in temp dirs; the default 60s slow
+# threshold is noisy on a cold cache.
+slow-timeout = { period = "30s", terminate-after = 4 }
+
+[profile.ci]
+inherits = "default"
+# One retry absorbs genuine filesystem flakiness on Windows runners (temp-dir removal
+# races) without masking a real failure: a test that fails twice still fails the run.
+retries = 2
+fail-fast = false
+status-level = "retry"
+final-status-level = "slow"
+
+[profile.ci.junit]
+path = "junit.xml"

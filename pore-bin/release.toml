@@ -1,0 +1,13 @@
+# Package-level `cargo release` config.
+#
+# The changelog rule lives here rather than in the workspace release.toml because
+# replacement paths resolve relative to each package root. Putting it in the shared
+# config makes cargo-release look for macros/CHANGELOG.md, pore-core/CHANGELOG.md and
+# so on, and fail. Scoped to this one package it runs exactly once per release, which
+# is what `exactly = 1` requires.
+
+[[pre-release-replacements]]
+file = "../CHANGELOG.md"
+search = "## \\[Unreleased\\]"
+replace = "## [Unreleased]\n\n## [{{version}}] - {{date}}"
+exactly = 1

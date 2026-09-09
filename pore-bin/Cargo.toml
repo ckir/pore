@@ -3,7 +3,9 @@ name = "pore"
 version = "0.2.2"
 edition = "2021"
 
-readme = "README.md"
+# No crate-level README: the binary is documented by the workspace root README.md,
+# which cargo cannot reference from here. A dangling `readme` key made `cargo package`
+# (and therefore `cargo release`) fail.
 license = "MIT"
 
 [dependencies]

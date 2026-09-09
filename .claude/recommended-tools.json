@@ -1,0 +1,20 @@
+[
+  {
+    "name": "cargo-nextest",
+    "why": "Test runner used by CI. Faster than `cargo test`, runs each test in its own process (which matters here: the file-index tests build real Tantivy indexes in temp dirs), and gives per-test timing plus retries. Note it does NOT run doctests, so pair it with `cargo test --doc`.",
+    "install": "cargo binstall -y cargo-nextest",
+    "in_path": "cargo-nextest"
+  },
+  {
+    "name": "cargo-release",
+    "why": "Drives the release: bumps all four crates in lockstep, dates the CHANGELOG, and pushes the single `v{version}` tag that .github/workflows/release.yml triggers on. Configured by release.toml and pore-bin/release.toml.",
+    "install": "cargo binstall -y cargo-release",
+    "in_path": "cargo-release"
+  },
+  {
+    "name": "typos",
+    "why": "Spell-checks source and prose; run as a CI job. Configured by typos.toml, which excludes docs/superpowers/plans/*.txt because those are captured diff artifacts and correcting them would falsify the record.",
+    "install": "cargo binstall -y typos-cli",
+    "in_path": "typos"
+  }
+]

@@ -28,6 +28,18 @@ jobs:
           components: clippy
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
+  typos:
+    name: typos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      # Pinned to the version used locally so CI and a developer's machine agree on
+      # what counts as a typo. Configured by typos.toml at the repo root.
+      - name: install typos
+        run: cargo install typos-cli --locked --version 1.48.0
+      - run: typos
+
   test:
     name: test
     runs-on: ubuntu-latest
@@ -36,4 +48,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --workspace --verbose
+      - name: install cargo-nextest
+        run: cargo install cargo-nextest --locked --version 0.9.138
+
+      # Split from the e2e step below so a rendering regression is attributable at a
+      # glance instead of being buried in the full run. `-E 'not binary(...)'` keeps
+      # the two disjoint, so nothing runs twice and both share one compile.
+      - name: unit + integration
+        run: cargo nextest run --workspace --profile ci -E 'not binary(ansi_e2e)'
+
+      - name: e2e (terminal rendering)
+        run: cargo nextest run -p pore --test ansi_e2e --profile ci
+
+      # nextest has no doctest runner, so `cargo nextest run` alone is a WEAKER gate
+      # than `cargo test`. pore-core has a doctest (language.rs, LanguageRef); without
+      # this step it would silently stop being checked.
+      - name: doctests
+        run: cargo test --workspace --doc

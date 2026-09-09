@@ -22,7 +22,7 @@ glob = []
 # Files that do not match any of these globs will be ignored.
 oglob = []
 
-# Patterns passed to --glob and --oglob will be matched in a case-insentive way.
+# Patterns passed to --glob and --oglob will be matched in a case-insensitive way.
 glob_case_insensitive = false
 
 # The approximate number of threads to use.
