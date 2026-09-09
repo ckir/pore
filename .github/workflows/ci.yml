@@ -33,11 +33,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      # Pinned to the version used locally so CI and a developer's machine agree on
-      # what counts as a typo. Configured by typos.toml at the repo root.
-      - name: install typos
-        run: cargo install typos-cli --locked --version 1.48.0
+      # Prebuilt binary, so this job needs no Rust toolchain at all. Pinned to the
+      # version used locally so CI and a developer's machine agree on what counts as a
+      # typo. Configured by typos.toml at the repo root.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: typos@1.48.0
       - run: typos
 
   test:
@@ -48,8 +49,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - name: install cargo-nextest
-        run: cargo install cargo-nextest --locked --version 0.9.138
+      # Prebuilt binary rather than `cargo install`, which would rebuild nextest from
+      # source on every run. Pinned to the version used locally.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9.138
 
       # Split from the e2e step below so a rendering regression is attributable at a
       # glance instead of being buried in the full run. `-E 'not binary(...)'` keeps
