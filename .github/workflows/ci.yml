@@ -69,3 +69,12 @@ jobs:
       # this step it would silently stop being checked.
       - name: doctests
         run: cargo test --workspace --doc
+
+      # pore-lua's #[mlua::lua_module] entry point -- the exported get_index /
+      # get_file_index bindings -- only compiles under mlua's `module` feature, which is
+      # mutually exclusive with the default `vendored`. So every other job here silently
+      # skips it, and the actual shipped Lua module can fail to compile while CI is
+      # green. That happened: add41ce landed a call with a phantom 5th argument and
+      # nothing noticed. This step is the only thing type-checking that code.
+      - name: build the Lua module (cfg-gated out of every other job)
+        run: cargo build -p pore-lua --no-default-features --features lua55,module

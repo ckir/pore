@@ -75,12 +75,11 @@ fn pore_lua(lua: &Lua) -> LuaResult<LuaTable> {
 
     let get_index = lua.create_function(
         |_,
-         (id_field, text_fields, config, cache_dir, add_json_field): (
+         (id_field, text_fields, config, cache_dir): (
             String,
             Vec<String>,
             IndexOptionsShape,
             Option<String>,
-            Option<bool>,
         )| {
             let index = GenericIndex::get_or_create(
                 &id_field,
@@ -95,7 +94,6 @@ fn pore_lua(lua: &Lua) -> LuaResult<LuaTable> {
                     })
                     .transpose()?
                     .as_deref(),
-                add_json_field.unwrap_or(false),
             )
             .map_err(|e| LuaError::RuntimeError(format!("Error creating index {:?}", e)))?;
             Ok(GenericIndexLua { index })
