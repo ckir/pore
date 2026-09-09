@@ -152,6 +152,9 @@ pore search "error" --snippets
 # Aggregate analytics: see how many results exist per file extension
 pore search "todo" --aggregate ext
 
+# Aggregation output is JSON, so it composes with --jq
+pore search "todo" --aggregate ext --jq '[.ext.buckets[].key]'
+
 # Search hidden files and directories
 pore search "secret" --hidden
 ```

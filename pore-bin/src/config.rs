@@ -57,6 +57,8 @@ pub struct SearchConfig {
     pub sort: Option<String>,
     /// Return Tantivy-generated snippets instead of matching lines.
     pub snippets: bool,
+    /// Group matching documents into buckets by this fast field instead of listing them.
+    pub aggregate: Option<String>,
 }
 
 impl Default for SearchConfig {
@@ -72,6 +74,7 @@ impl Default for SearchConfig {
             in_memory: false,
             sort: None,
             snippets: false,
+            aggregate: None,
         }
     }
 }
@@ -88,6 +91,14 @@ impl SearchConfig {
             root_dir: Some(search_dir.to_string()),
             sort: self.sort.clone(),
             snippets: self.snippets,
+            // A blank value means "no aggregation": unlike `sort`, this option has no
+            // harmless sentinel, and pore.example.toml must still list every field.
+            aggregate: self
+                .aggregate
+                .as_deref()
+                .map(str::trim)
+                .filter(|f| !f.is_empty())
+                .map(str::to_string),
         }
     }
 }

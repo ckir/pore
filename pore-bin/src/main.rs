@@ -96,6 +96,24 @@ fn run_search(args: args::SearchArgs) -> Result<bool, anyhow::Error> {
                 let query_parser = QueryParser::for_index(index.index(), vec![*index.contents()]);
                 let query = query_parser.parse_query(&query)?;
                 let opts = &search.to_opts(&conf.search_dir);
+
+                // --aggregate replaces the result listing with bucket counts, so it has
+                // its own output path; --jq still applies to that JSON.
+                if opts.aggregate.is_some() {
+                    let buckets = index.aggregate(&query, opts)?;
+                    let stdout = io::stdout();
+                    let mut out = stdout.lock();
+                    if let Some(ref jq_expr) = conf.jq_expr {
+                        let engine = JqEngine::compile(jq_expr)?;
+                        for output in engine.run(&buckets)? {
+                            writeln!(out, "{}", serde_json::to_string_pretty(&output)?)?;
+                        }
+                    } else {
+                        writeln!(out, "{}", serde_json::to_string_pretty(&buckets)?)?;
+                    }
+                    return Ok(true);
+                }
+
                 let results = index.search(&query, opts)?;
 
                 // If --jq is specified, post-process results as JSON

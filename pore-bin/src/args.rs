@@ -282,6 +282,9 @@ pub fn build_search_config(args: SearchArgs) -> Result<GlobalConfig, anyhow::Err
     if args.snippets {
         search.snippets = Some(true);
     }
+    if let Some(ref aggregate) = args.aggregate {
+        search.aggregate = Some(Some(aggregate.clone()));
+    }
     if args.files_with_matches {
         search.filename_only = Some(true);
     }

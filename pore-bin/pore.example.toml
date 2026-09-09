@@ -63,3 +63,8 @@ sort = "score"
 # Snippets are a condensed extract with the match highlighted; lines carry
 # 1-based line numbers. Only one of the two is ever produced.
 snippets = false
+
+# Group matching files into buckets by a fast field (e.g. "ext") instead of listing
+# them, printing the counts as JSON. Leave blank for no aggregation -- any non-blank
+# value here would aggregate on EVERY search.
+aggregate = ""

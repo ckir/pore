@@ -145,6 +145,8 @@ pub struct FileSearchOptions {
     pub sort: Option<String>,
     /// When true, return Tantivy-generated snippets instead of matching lines.
     pub snippets: bool,
+    /// Group matching documents into buckets by this fast field instead of listing them.
+    pub aggregate: Option<String>,
 }
 
 impl Default for FileSearchOptions {
@@ -156,6 +158,7 @@ impl Default for FileSearchOptions {
             root_dir: None,
             sort: None,
             snippets: false,
+            aggregate: None,
         }
     }
 }
@@ -474,6 +477,62 @@ impl FileIndex {
         }
 
         Ok(self)
+    }
+
+    /// Groups the documents matching `query` into buckets by a fast field.
+    ///
+    /// The field named by [`FileSearchOptions::aggregate`] must exist in the schema and be
+    /// a FAST field — `ext`, `filepath` and `modified` qualify. Returns Tantivy's terms
+    /// aggregation result as JSON, shaped `{"<field>": {"buckets": [{"key", "doc_count"}]}}`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error naming the field when it is absent from the schema, is not a fast
+    /// field, or when no aggregate field was requested at all.
+    pub fn aggregate(
+        &self,
+        query: &dyn Query,
+        opts: &FileSearchOptions,
+    ) -> Result<serde_json::Value, anyhow::Error> {
+        use tantivy::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
+        use tantivy::aggregation::bucket::TermsAggregation;
+        use tantivy::aggregation::{AggContextParams, AggregationCollector};
+
+        let field_name = opts
+            .aggregate
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("no aggregate field requested"))?;
+
+        // Fail with the field name rather than letting Tantivy raise a generic error deep
+        // inside the collector.
+        let schema = self.index.schema();
+        let field = schema
+            .get_field(field_name)
+            .map_err(|_| anyhow::anyhow!("cannot aggregate on unknown field '{field_name}'"))?;
+        if !schema.get_field_entry(field).is_fast() {
+            return Err(anyhow::anyhow!(
+                "cannot aggregate on '{field_name}': it is not a fast field"
+            ));
+        }
+
+        let mut aggs = Aggregations::default();
+        aggs.insert(
+            field_name.to_string(),
+            Aggregation {
+                agg: AggregationVariants::Terms(TermsAggregation {
+                    field: field_name.to_string(),
+                    ..Default::default()
+                }),
+                sub_aggregation: Aggregations::default(),
+            },
+        );
+
+        let searcher = self.index.reader()?.searcher();
+        let collector = AggregationCollector::from_aggs(
+            aggs,
+            AggContextParams::new(Default::default(), self.index.tokenizers().clone()),
+        );
+        Ok(serde_json::to_value(searcher.search(query, &collector)?)?)
     }
 
     /// Executes a search query against the file index.

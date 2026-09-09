@@ -231,3 +231,48 @@ fn eval_from_file() {
 fn eval_invalid_filter_errors() {
     pore().arg("eval").arg(".[bad syntax!!").assert().failure();
 }
+
+#[test]
+fn aggregate_flag_groups_matches_by_extension() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("a.rs"), "hello rust").unwrap();
+    fs::write(tmp.path().join("b.rs"), "hello again").unwrap();
+    fs::write(tmp.path().join("c.txt"), "hello text").unwrap();
+
+    let (mut cmd, _home) = pore_with_home();
+    let output = cmd
+        .arg("search")
+        .arg("--in-memory")
+        .arg("--rebuild")
+        .arg("--aggregate")
+        .arg("ext")
+        .arg("hello")
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let value: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("expected JSON, got {stdout}: {e}"));
+    let buckets = value["ext"]["buckets"].as_array().unwrap();
+    let rs = buckets.iter().find(|b| b["key"] == "rs").unwrap();
+    assert_eq!(rs["doc_count"], 2);
+}
+
+#[test]
+fn aggregate_flag_on_unknown_field_fails_with_the_field_name() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("a.rs"), "hello").unwrap();
+
+    let (mut cmd, _home) = pore_with_home();
+    cmd.arg("search")
+        .arg("--in-memory")
+        .arg("--rebuild")
+        .arg("--aggregate")
+        .arg("nope")
+        .arg("hello")
+        .arg(tmp.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("nope"));
+}

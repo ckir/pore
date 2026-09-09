@@ -292,3 +292,73 @@ fn ext_fast_field_is_populated_per_document() {
         "the ext:rs hit must be keep.rs, got {path}"
     );
 }
+
+/// Parses `query_str` against the contents field, the same way the CLI does.
+fn parse_query(index: &pore_core::FileIndex, query_str: &str) -> Box<dyn tantivy::query::Query> {
+    use tantivy::query::QueryParser;
+    let parser = QueryParser::for_index(index.index(), vec![*index.contents()]);
+    parser.parse_query(query_str).unwrap()
+}
+
+#[test]
+fn aggregate_by_ext_counts_matching_files_per_extension() {
+    let (_tmp, mut index) = create_test_file_index(
+        &[
+            ("a.rs", "hello rust"),
+            ("b.rs", "hello again"),
+            ("c.txt", "hello text"),
+            ("d.txt", "unrelated content"),
+        ],
+        FileIndexOptions::default(),
+    );
+    index.update(false).unwrap();
+
+    let query = parse_query(&index, "hello");
+    let opts = FileSearchOptions {
+        aggregate: Some("ext".to_string()),
+        ..Default::default()
+    };
+    let value = index.aggregate(&*query, &opts).unwrap();
+
+    let buckets = value["ext"]["buckets"]
+        .as_array()
+        .unwrap_or_else(|| panic!("expected ext buckets, got: {value}"));
+    let mut counts: Vec<(String, u64)> = buckets
+        .iter()
+        .map(|b| {
+            (
+                b["key"].as_str().unwrap().to_string(),
+                b["doc_count"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    counts.sort();
+
+    // d.txt does not match "hello", so it must not be counted.
+    assert_eq!(
+        counts,
+        vec![("rs".to_string(), 2), ("txt".to_string(), 1)],
+        "aggregation must count only the documents matching the query"
+    );
+}
+
+#[test]
+fn aggregate_on_unknown_field_reports_the_field_name() {
+    let (_tmp, mut index) =
+        create_test_file_index(&[("a.rs", "hello")], FileIndexOptions::default());
+    index.update(false).unwrap();
+
+    let query = parse_query(&index, "hello");
+    let opts = FileSearchOptions {
+        aggregate: Some("not_a_field".to_string()),
+        ..Default::default()
+    };
+    let err = index
+        .aggregate(&*query, &opts)
+        .expect_err("aggregating on a field that does not exist must fail");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("not_a_field"),
+        "the error must name the offending field, got: {msg}"
+    );
+}
