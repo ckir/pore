@@ -170,11 +170,13 @@ pub fn create_index<
         schema_builder.add_u64_field("modified", INDEXED | FAST);
     }
     for name in text_fields {
-        let text_options = TextOptions::default().set_indexing_options(
-            TextFieldIndexing::default()
-                .set_tokenizer(&get_tokenizer(config.language().into()))
-                .set_index_option(IndexRecordOption::WithFreqsAndPositions),
-        ).set_stored();
+        let text_options = TextOptions::default()
+            .set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_tokenizer(&get_tokenizer(config.language().into()))
+                    .set_index_option(IndexRecordOption::WithFreqsAndPositions),
+            )
+            .set_stored();
         schema_builder.add_text_field(&name.into(), text_options);
     }
     let schema = schema_builder.build();

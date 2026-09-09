@@ -33,7 +33,6 @@ use std::fmt::Display;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use tantivy::collector::TopDocs;
 use tantivy::doc;
 use tantivy::query::Query;
 use tantivy::ReloadPolicy;
@@ -61,7 +60,8 @@ impl Document for PoreFileEntry {
             (self.filepath_field, &self.filepath_value),
             (self.contents_field, &self.contents_value),
             (self.modified_field, &self.modified_value),
-        ].into_iter()
+        ]
+        .into_iter()
     }
 }
 
@@ -209,7 +209,11 @@ pub struct FileSearchResult {
 impl FileSearchResult {
     /// Creates a new FileSearchResult.
     pub fn new(file: PathBuf, score: f32, snippets: Vec<String>) -> Self {
-        Self { file, score, snippets }
+        Self {
+            file,
+            score,
+            snippets,
+        }
     }
 
     /// Returns the path to the matched file.
@@ -291,8 +295,13 @@ impl FileIndex {
         cache_dir: Option<P>,
         config: &FileIndexOptions,
     ) -> Result<Self, anyhow::Error> {
-        let (meta_opt, index): (Option<FileMetadata>, Index) =
-            create_index(cache_dir.as_ref(), config, "filepath", vec!["contents".to_string()], true)?;
+        let (meta_opt, index): (Option<FileMetadata>, Index) = create_index(
+            cache_dir.as_ref(),
+            config,
+            "filepath",
+            vec!["contents".to_string()],
+            true,
+        )?;
         let meta = meta_opt.unwrap_or_else(|| FileMetadata::new(config.clone(), for_dir).unwrap());
         let filepath = index
             .schema()
@@ -418,12 +427,11 @@ impl FileIndex {
             .try_into()?;
         let searcher = reader.searcher();
 
-        let process_docs = |doc_addresses: Vec<tantivy::DocAddress>, scores: Vec<f32>| -> Result<Vec<FileSearchResult>, anyhow::Error> {
-            let snippet_generator = tantivy::snippet::SnippetGenerator::create(
-                &searcher,
-                query,
-                *self.contents()
-            )?;
+        let process_docs = |doc_addresses: Vec<tantivy::DocAddress>,
+                            scores: Vec<f32>|
+         -> Result<Vec<FileSearchResult>, anyhow::Error> {
+            let snippet_generator =
+                tantivy::snippet::SnippetGenerator::create(&searcher, query, *self.contents())?;
             let mut res = Vec::new();
             for (i, doc_address) in doc_addresses.into_iter().enumerate() {
                 let score = scores.get(i).copied().unwrap_or(0.0);
@@ -456,20 +464,40 @@ impl FileIndex {
 
         if let Some(sort_field) = &opts.sort {
             if sort_field == "date" {
-                let top_docs = searcher.search(query, &tantivy::collector::TopDocs::with_limit(opts.limit).order_by_fast_field::<u64>("modified", tantivy::Order::Desc))?;
+                let top_docs = searcher.search(
+                    query,
+                    &tantivy::collector::TopDocs::with_limit(opts.limit)
+                        .order_by_fast_field::<u64>("modified", tantivy::Order::Desc),
+                )?;
                 let len = top_docs.len();
                 process_docs(top_docs.into_iter().map(|x| x.1).collect(), vec![0.0; len])
             } else if sort_field == "path" {
-                let top_docs = searcher.search(query, &tantivy::collector::TopDocs::with_limit(opts.limit).order_by_string_fast_field("filepath", tantivy::Order::Asc))?;
+                let top_docs = searcher.search(
+                    query,
+                    &tantivy::collector::TopDocs::with_limit(opts.limit)
+                        .order_by_string_fast_field("filepath", tantivy::Order::Asc),
+                )?;
                 let len = top_docs.len();
                 process_docs(top_docs.into_iter().map(|x| x.1).collect(), vec![0.0; len])
             } else {
-                let top_docs = searcher.search(query, &tantivy::collector::TopDocs::with_limit(opts.limit).order_by_score())?;
-                process_docs(top_docs.iter().map(|x| x.1).collect(), top_docs.iter().map(|x| x.0).collect())
+                let top_docs = searcher.search(
+                    query,
+                    &tantivy::collector::TopDocs::with_limit(opts.limit).order_by_score(),
+                )?;
+                process_docs(
+                    top_docs.iter().map(|x| x.1).collect(),
+                    top_docs.iter().map(|x| x.0).collect(),
+                )
             }
         } else {
-            let top_docs = searcher.search(query, &tantivy::collector::TopDocs::with_limit(opts.limit).order_by_score())?;
-            process_docs(top_docs.iter().map(|x| x.1).collect(), top_docs.iter().map(|x| x.0).collect())
+            let top_docs = searcher.search(
+                query,
+                &tantivy::collector::TopDocs::with_limit(opts.limit).order_by_score(),
+            )?;
+            process_docs(
+                top_docs.iter().map(|x| x.1).collect(),
+                top_docs.iter().map(|x| x.0).collect(),
+            )
         }
     }
 }
