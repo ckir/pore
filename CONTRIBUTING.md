@@ -118,6 +118,19 @@ touch path resolution, test with the variables genuinely removed rather than inj
   from what is a **proposal**. Please keep that distinction.
 - Pull requests run the full CI gate.
 
+## Documentation site
+
+`cargo doc --workspace` produces **no root `index.html`** for a multi-crate workspace, only
+`help.html` and `settings.html`. The landing page at
+<https://ckir.github.io/pore/> is [`docs/pages/index.html`](docs/pages/index.html), copied
+into `target/doc` by the `rustdoc` job before deploying.
+
+It previously existed only as an untracked file on the `gh-pages` branch, surviving
+because the deploy sets `keep_files: true` — so recreating that branch would have 404'd
+the docs root with no way to rebuild it. If you add or rename a crate, update the links in
+that file; the workflow fails the build if the page links to a crate `cargo doc` did not
+produce.
+
 ## Releases
 
 Maintainers only, and the working tree must be clean:

@@ -124,6 +124,20 @@ jobs:
       - name: Build documentation
         run: cargo doc --workspace --no-deps
 
+      # `cargo doc --workspace` emits no root index.html for a multi-crate workspace --
+      # only help.html and settings.html -- so without this the docs root 404s. The
+      # landing page used to exist solely as an untracked file on the gh-pages branch,
+      # surviving only because keep_files is true; it is now versioned with the code and
+      # redeployed every time, so a recreated branch reproduces the whole site.
+      - name: Add the docs landing page
+        run: |
+          set -euo pipefail
+          cp docs/pages/index.html target/doc/index.html
+          test -s target/doc/index.html
+          for crate in pore pore_core pore_lua macros; do
+            test -d "target/doc/$crate" || { echo "::error::landing page links to $crate/ but cargo doc produced no such directory"; exit 1; }
+          done
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
