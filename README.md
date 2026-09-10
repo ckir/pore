@@ -1,7 +1,6 @@
 # Pore
 
-[![Build Status](https://github.com/stevearc/pore/actions/workflows/ci.yml/badge.svg)](https://github.com/stevearc/pore/actions)
-[![Crates.io](https://img.shields.io/crates/v/pore.svg)](https://crates.io/crates/pore)
+[![Build Status](https://github.com/ckir/pore/actions/workflows/ci.yml/badge.svg)](https://github.com/ckir/pore/actions/workflows/ci.yml)
 > pore (verb) \
 > to read or study attentively
 
@@ -16,9 +15,9 @@ string, use ripgrep. If you want something more like a Google search, use pore.
 
 **New in Pore:**
 Pore now supports native regular expressions and field grouping in your queries!
-- Regex searches: `pore "/b.* wolf/"`
-- Field grouping: `pore "path:(src AND *.rs)"`
-- Wildcards: `pore "*foo"`
+- Regex searches: `pore search "/b.* wolf/"`
+- Field grouping: `pore search "path:(src AND *.rs)"`
+- Wildcards: `pore search "*foo"`
 
 ```
 Usage:
@@ -162,7 +161,7 @@ pore search "secret" --hidden
 ## Config
 The config file is located at `${XDG_CONFIG_HOME}/pore.toml` (default
 `$HOME/.config/pore.toml`). An example can be found at
-[pore.example.toml](https://github.com/stevearc/pore/blob/master/pore-bin/pore.example.toml).
+[pore.example.toml](https://github.com/ckir/pore/blob/master/pore-bin/pore.example.toml).
 The format is:
 
 ```toml
