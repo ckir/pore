@@ -151,15 +151,50 @@ jobs:
       - name: Generate release body
         id: body
         run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          case "$GITHUB_REF" in refs/tags/v*) IS_TAG=1;; *) IS_TAG=0;; esac
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
-          if [ -z "$PREV_TAG" ]; then
-            BODY="Initial release"
-          else
-            BODY=$(git log --oneline "$PREV_TAG..HEAD")
+
+          # Prefer the hand-written CHANGELOG section for this version, so releases read
+          # as notes rather than a wall of commit subjects.
+          #
+          # Matched by literal prefix, not regex: awk mangles the bracket escapes in
+          # "^## \[$ver\]" and silently matches nothing. Including the closing bracket in
+          # the needle is what stops "0.3" from matching "## [0.3.0]".
+          # The sed/tac/sed/tac pair trims leading and trailing blank lines.
+          BODY=""
+          if [ "$IS_TAG" = "1" ]; then
+            BODY=$(awk -v ver="$VERSION" '
+              BEGIN { want = "## [" ver "]" }
+              index($0, want) == 1 { found = 1; next }
+              found && index($0, "## [") == 1 { exit }
+              found { print }
+            ' CHANGELOG.md | sed -e '/./,$!d' | tac | sed -e '/./,$!d' | tac)
           fi
-          echo "body<<EOF" >> "$GITHUB_OUTPUT"
+
+          # Never ship an empty body. Falls back to the commit list for a
+          # workflow_dispatch run, or a tag whose version has no CHANGELOG section.
+          if [ -z "$BODY" ]; then
+            if [ -n "$PREV_TAG" ]; then
+              BODY=$(git log --oneline "$PREV_TAG..HEAD")
+            else
+              BODY="Initial release"
+            fi
+          fi
+
+          if [ "$IS_TAG" = "1" ] && [ -n "$PREV_TAG" ]; then
+            BODY="$BODY
+
+          **Full changelog:** https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...v${VERSION}"
+          fi
+
+          # Random delimiter: a fixed one could appear in CHANGELOG prose and break the
+          # heredoc, which is a known GITHUB_OUTPUT injection footgun.
+          DELIM="body_$(openssl rand -hex 8)"
+          echo "body<<$DELIM" >> "$GITHUB_OUTPUT"
           echo "$BODY" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "$DELIM" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
