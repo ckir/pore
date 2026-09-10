@@ -1,7 +1,8 @@
 //! Configuration file loading and option merging.
 //!
 //! This module handles loading the TOML config file from `$XDG_CONFIG_HOME/pore.toml`
-//! (falling back to `$HOME/.config/pore.toml`) and merging options from three sources:
+//! (falling back to `.config/pore.toml` under `$HOME`, then `%USERPROFILE%`; see
+//! [`crate::paths`]) and merging options from three sources:
 //!
 //! 1. **Global defaults** — hardcoded `Default` implementations.
 //! 2. **Config file globals** — top-level TOML keys apply to all directories.
@@ -20,10 +21,8 @@ use macros::create_option_copy;
 use pore_core::FileIndexOptionsShape;
 use pore_core::FileSearchOptions;
 use serde::Deserialize;
-use std::env;
 use std::fs;
 use std::path::Path;
-use std::path::PathBuf;
 use toml::Value;
 
 use crate::color_mode::ColorMode;
@@ -126,11 +125,8 @@ pub fn load_config(
     index_name: Option<&str>,
 ) -> Result<(FileIndexOptionsShape, SearchConfigOpt), anyhow::Error> {
     let path_str = path.to_string_lossy();
-    let mut config_home = env::var("XDG_CONFIG_HOME").unwrap_or("".to_string());
-    if config_home.is_empty() {
-        config_home = env::var("HOME")? + "/.config";
-    }
-    let config_file = PathBuf::from(config_home).join(CONFIG_FILE);
+    let config_file =
+        crate::paths::resolve_base_dir("XDG_CONFIG_HOME", ".config")?.join(CONFIG_FILE);
     if config_file.exists() {
         let contents = &fs::read_to_string(&config_file)?;
         let value: Value = toml::from_str(contents)

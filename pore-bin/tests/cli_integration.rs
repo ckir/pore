@@ -6,9 +6,12 @@ fn pore() -> Command {
     Command::cargo_bin("pore").unwrap()
 }
 
-/// Returns a Command with `HOME` set to a temp directory.
-/// On Windows, `HOME` is not set by default, and pore requires it for
-/// config file lookup (`$HOME/.config/pore.toml`).
+/// Returns a Command with `HOME` pointed at a temp directory.
+///
+/// pore no longer *requires* `HOME` -- it falls back to `USERPROFILE` -- but these
+/// tests still redirect it so they read a config file that does not exist rather than
+/// whatever the developer happens to have at `~/.config/pore.toml`. Tests that must
+/// prove the fallback works remove the variable instead; see `works_with_home_unset`.
 fn pore_with_home() -> (Command, tempfile::TempDir) {
     let tmp = tempfile::tempdir().unwrap();
     let mut cmd = pore();
@@ -380,5 +383,73 @@ fn bare_regex_without_a_field_is_rejected_clearly() {
     assert!(
         stderr.contains("specific field"),
         "error should say a regex needs a field, got: {stderr}"
+    );
+}
+
+/// ROADMAP item 1: pore hard-required `HOME`, which Windows does not set, so every
+/// command that touched config or cache failed with a bare
+/// "environment variable not found". These run the CLI with `HOME` genuinely absent
+/// rather than injecting one, which is what the rest of this file does.
+#[test]
+fn works_with_home_unset() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
+
+    pore()
+        .env_remove("HOME")
+        .env_remove("XDG_CONFIG_HOME")
+        .env_remove("XDG_CACHE_HOME")
+        .arg("search")
+        .arg("--in-memory")
+        .arg("--rebuild")
+        .arg("hello")
+        .arg(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("test.txt"));
+}
+
+#[test]
+fn files_command_works_with_home_unset() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
+
+    pore()
+        .env_remove("HOME")
+        .env_remove("XDG_CONFIG_HOME")
+        .env_remove("XDG_CACHE_HOME")
+        .arg("search")
+        .arg("--in-memory")
+        .arg("--files")
+        .arg("")
+        .arg(tmp.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn unresolvable_home_names_the_variables_it_tried() {
+    // With every candidate removed the lookup genuinely cannot succeed. The error must
+    // say which variables were consulted -- the old one was just
+    // "environment variable not found", which named nothing and suggested nothing.
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
+
+    let assert = pore()
+        .env_remove("HOME")
+        .env_remove("USERPROFILE")
+        .env_remove("XDG_CONFIG_HOME")
+        .env_remove("XDG_CACHE_HOME")
+        .arg("search")
+        .arg("--in-memory")
+        .arg("--rebuild")
+        .arg("hello")
+        .arg(tmp.path())
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).to_string();
+    assert!(
+        stderr.contains("XDG_CONFIG_HOME") && stderr.contains("USERPROFILE"),
+        "error should name the variables it tried, got: {stderr}"
     );
 }

@@ -24,6 +24,7 @@ mod args;
 mod color_mode;
 mod config;
 mod output;
+mod paths;
 
 fn main() {
     match run() {
@@ -174,11 +175,7 @@ fn run_eval(args: args::EvalArgs) -> Result<bool, anyhow::Error> {
 }
 
 fn find_index_dir(for_dir: &Path, index_name: Option<&str>) -> Result<PathBuf, anyhow::Error> {
-    let mut cache_home = env::var("XDG_CACHE_HOME").unwrap_or("".to_string());
-    if cache_home.is_empty() {
-        cache_home = env::var("HOME")? + "/.cache";
-    }
-    let mut index_root = PathBuf::from(cache_home);
+    let mut index_root = paths::resolve_base_dir("XDG_CACHE_HOME", ".cache")?;
     index_root.push(env!("CARGO_PKG_NAME"));
     if for_dir.is_absolute() {
         index_root.push(strip_root(for_dir));

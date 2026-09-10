@@ -15,6 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Documentation**: A Lua module section in the README — how to build a loadable module (it needs `--no-default-features --features lua55,module`; the default `vendored` build is not loadable), the `get_file_index` / `get_index` API, and the result shapes. The module was previously undocumented.
 - **Documentation**: Comprehensive `ROADMAP.md` tracking all upcoming features.
 
+### Fixed
+- **Windows**: pore hard-required `HOME`, which Windows does not set, so every command that touched the config file or the index cache failed with a bare `environment variable not found` — only `--help` and `--version` worked. Both lookups now fall back to `%USERPROFILE%` after `HOME`, and when nothing resolves the error names every variable it consulted instead of propagating `VarError::NotPresent`.
+
 ### Changed
 - **Performance**: Integrated zero-copy indexing for `PoreFileEntry`, dramatically reducing string allocations during `index.update()`.
 - **Index size**: text fields are now `STORED`, which snippet generation requires. This grows the on-disk index; run `pore search --rebuild` once after upgrading.

@@ -237,8 +237,11 @@ Query syntax is the same as the CLI's, regexes included. `pore.version` holds
 `full`, `major`, `minor`, `patch` and `pre`.
 
 ## Config
-The config file is located at `${XDG_CONFIG_HOME}/pore.toml` (default
-`$HOME/.config/pore.toml`). An example can be found at
+The config file is located at `${XDG_CONFIG_HOME}/pore.toml`. With that unset it falls
+back to `$HOME/.config/pore.toml`, and then to `%USERPROFILE%\.config\pore.toml` --
+which is the one that applies on Windows, where `HOME` is not set unless something like
+Git Bash or WSL sets it. The index cache resolves the same way via `${XDG_CACHE_HOME}`,
+falling back to `.cache` under the same home directory. An example can be found at
 [pore.example.toml](https://github.com/ckir/pore/blob/master/pore-bin/pore.example.toml).
 The format is:
 
