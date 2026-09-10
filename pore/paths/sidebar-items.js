@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["non_empty_var","resolve_base_dir"]};

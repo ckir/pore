@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["print_results"]};
+window.SIDEBAR_ITEMS = {"fn":["print_results","snippet_segments"]};
