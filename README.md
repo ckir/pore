@@ -165,6 +165,77 @@ pore search "todo" --aggregate ext --jq '[.ext.buckets[].key]'
 pore search "secret" --hidden
 ```
 
+## Lua module
+
+`pore-lua` builds a native Lua module, so a Lua script can index and query directly
+instead of shelling out to the CLI and parsing its output.
+
+### Building
+
+The default features build a cdylib with Lua **linked in**, which is not loadable as a
+Lua module. You need the `module` feature, and it is mutually exclusive with the default
+`vendored`:
+
+```bash
+cargo build -p pore-lua --release --no-default-features --features lua55,module
+```
+
+Swap `lua55` for `lua54`, `lua53`, `lua52`, `lua51`, or `luajit` to match your interpreter.
+
+The artifact is `pore_lua.dll` on Windows, and `libpore_lua.so` / `libpore_lua.dylib`
+elsewhere. Lua's loader looks for the module name without the `lib` prefix, so on
+Unix rename or symlink it to `pore_lua.so` and put it on your `package.cpath`.
+
+### Indexing files
+
+```lua
+local pore = require("pore_lua")
+
+-- (directory to index, cache directory or nil for in-memory, options)
+local idx = pore.get_file_index("/path/to/project", "/path/to/cache", {
+  hidden = false,
+  language = "english",
+  glob = { "*.rs" },
+})
+
+idx:update(false)   -- true forces a full rebuild
+
+for _, hit in ipairs(idx:search("contents:/w.lf/", { limit = 10 })) do
+  print(hit.file, hit.score)
+  for _, line in ipairs(hit.lines) do
+    print(line.number, line.text)
+  end
+end
+```
+
+A hit is `{ file, score, lines }`, where each line is `{ number, text }` and `number` is
+1-based. Passing `{ snippets = true }` swaps `lines` for `snippets`, a list of strings —
+only one of the two is ever present. `{ aggregate = "ext" }` is available through
+`idx:aggregate(query, opts)`, which returns the bucket counts as a table.
+
+Search options: `limit`, `threshold`, `filename_only`, `root_dir`, `sort`, `snippets`,
+`aggregate`. Index options: `follow`, `glob`, `oglob`, `glob_case_insensitive`, `hidden`,
+`ignore_files`, `language`, `threads`. Omitted keys take their defaults.
+
+### Indexing your own documents
+
+`get_index` takes an id field, the text fields to index, options, and a cache directory:
+
+```lua
+local idx = pore.get_index("id", { "text" }, { language = "english" }, "/path/to/cache")
+
+idx:add_documents({ { id = "1", text = "the big bad wolf" } })
+
+for _, hit in ipairs(idx:search("wolf", { limit = 10 })) do
+  print(hit.id, hit.score)      -- generic hits carry id and score only
+end
+```
+
+Also available: `update_documents(docs)`, `delete_documents(ids)`, `delete()`.
+
+Query syntax is the same as the CLI's, regexes included. `pore.version` holds
+`full`, `major`, `minor`, `patch` and `pre`.
+
 ## Config
 The config file is located at `${XDG_CONFIG_HOME}/pore.toml` (default
 `$HOME/.config/pore.toml`). An example can be found at
