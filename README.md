@@ -236,6 +236,11 @@ Also available: `update_documents(docs)`, `delete_documents(ids)`, `delete()`.
 Query syntax is the same as the CLI's, regexes included. `pore.version` holds
 `full`, `major`, `minor`, `patch` and `pre`.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the local gate, the test layout, and the
+platform and feature-flag traps worth knowing before you start.
+
 ## Config
 The config file is located at `${XDG_CONFIG_HOME}/pore.toml`. With that unset it falls
 back to `$HOME/.config/pore.toml`, and then to `%USERPROFILE%\.config\pore.toml` --
