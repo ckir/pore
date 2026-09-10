@@ -276,3 +276,109 @@ fn aggregate_flag_on_unknown_field_fails_with_the_field_name() {
         .failure()
         .stderr(predicate::str::contains("nope"));
 }
+
+/// Builds a fixture with a .rs and a .txt file and runs one query against it.
+fn query_files(query: &str) -> (std::process::Output, tempfile::TempDir) {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(tmp.path().join("src")).unwrap();
+    fs::write(tmp.path().join("a.txt"), "the big bad wolf\n").unwrap();
+    fs::write(tmp.path().join("src/main.rs"), "fn main() { wolf }\n").unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let out = pore()
+        .env("HOME", home.path())
+        .arg("search")
+        .arg("--in-memory")
+        .arg("--rebuild")
+        .arg("--color")
+        .arg("never")
+        .arg("-l")
+        .arg(query)
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    (out, tmp)
+}
+
+#[test]
+fn regex_query_on_contents_matches_a_term() {
+    let (out, _t) = query_files("contents:/w.lf/");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains("a.txt"),
+        "regex should match the term 'wolf': {stdout}"
+    );
+}
+
+#[test]
+fn regex_query_on_filepath_selects_by_extension() {
+    let (out, _t) = query_files(r"filepath:/.*\.rs/");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains("main.rs"),
+        "should match the .rs file: {stdout}"
+    );
+    assert!(
+        !stdout.contains("a.txt"),
+        "should not match the .txt file: {stdout}"
+    );
+}
+
+#[test]
+fn field_scoped_boolean_group_matches() {
+    let (out, _t) = query_files("contents:(big AND bad)");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains("a.txt"),
+        "field grouping should match: {stdout}"
+    );
+}
+
+#[test]
+fn filepath_regex_combines_with_a_content_term() {
+    let (out, _t) = query_files(r"filepath:/.*\.rs/ AND wolf");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains("main.rs"),
+        "should combine field regex with a term: {stdout}"
+    );
+    assert!(
+        !stdout.contains("a.txt"),
+        "a.txt has the term but not the extension: {stdout}"
+    );
+}
+
+#[test]
+fn bare_regex_without_a_field_is_rejected_clearly() {
+    // Pins a Tantivy limitation rather than a pore choice: a regex must name a field.
+    // This is why the README cannot document `pore search "/b.* wolf/"`.
+    let (out, _t) = query_files("/b.* wolf/");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !out.status.success(),
+        "a bare regex must not silently succeed"
+    );
+    assert!(
+        stderr.contains("specific field"),
+        "error should say a regex needs a field, got: {stderr}"
+    );
+}

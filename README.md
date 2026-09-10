@@ -15,9 +15,16 @@ string, use ripgrep. If you want something more like a Google search, use pore.
 
 **New in Pore:**
 Pore now supports native regular expressions and field grouping in your queries!
-- Regex searches: `pore search "/b.* wolf/"`
-- Field grouping: `pore search "path:(src AND *.rs)"`
+- Regex searches: `pore search "contents:/w.lf/"`
+- Regex over paths: `pore search "filepath:/.*\.rs/"`
+- Field grouping: `pore search "contents:(big AND bad)"`
 - Wildcards: `pore search "*foo"`
+
+A regex must name a field — Tantivy rejects a bare `/.../` with *"Regex query need
+to target a specific field"*. The two searchable fields are `contents` and `filepath`.
+Note that `contents` is tokenized, so a regex there matches a **single term**:
+`contents:/w.lf/` finds `wolf`, but a pattern containing a space can never match.
+`filepath` is stored whole, so `filepath:/.*\.rs/` matches against the entire path.
 
 ```
 Usage:
@@ -135,11 +142,11 @@ pore search '"exact phrase"'
 # Boolean logic and grouping
 pore search "hello AND (world OR universe)"
 
-# Regex search
-pore search "/b.* wolf/"
+# Regex search (must target a field; matches one term in `contents`)
+pore search "contents:/w.lf/"
 
 # Field-specific search (e.g. searching only rust files)
-pore search "path:*.rs AND foo"
+pore search 'filepath:/.*\.rs/ AND foo'
 
 # Sort results by modification date or file path
 pore search "error" --sort date
