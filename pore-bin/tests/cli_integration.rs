@@ -390,13 +390,20 @@ fn bare_regex_without_a_field_is_rejected_clearly() {
 /// command that touched config or cache failed with a bare
 /// "environment variable not found". These run the CLI with `HOME` genuinely absent
 /// rather than injecting one, which is what the rest of this file does.
+///
+/// `USERPROFILE` is set explicitly rather than left to the platform. Setting it is what
+/// makes this the *Windows* scenario -- HOME missing, USERPROFILE present -- on every
+/// platform. Relying on the ambient environment made these pass on Windows and fail on
+/// Linux CI, where nothing defines USERPROFILE and so nothing resolves.
 #[test]
 fn works_with_home_unset() {
     let tmp = tempfile::tempdir().unwrap();
     fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
+    let profile = tempfile::tempdir().unwrap();
 
     pore()
         .env_remove("HOME")
+        .env("USERPROFILE", profile.path())
         .env_remove("XDG_CONFIG_HOME")
         .env_remove("XDG_CACHE_HOME")
         .arg("search")
@@ -413,9 +420,11 @@ fn works_with_home_unset() {
 fn files_command_works_with_home_unset() {
     let tmp = tempfile::tempdir().unwrap();
     fs::write(tmp.path().join("test.txt"), "hello world").unwrap();
+    let profile = tempfile::tempdir().unwrap();
 
     pore()
         .env_remove("HOME")
+        .env("USERPROFILE", profile.path())
         .env_remove("XDG_CONFIG_HOME")
         .env_remove("XDG_CACHE_HOME")
         .arg("search")
