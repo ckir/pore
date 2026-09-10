@@ -1,6 +1,6 @@
 [package]
 name = "pore"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 
 # No crate-level README: the binary is documented by the workspace root README.md,

@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-10
+
 ### Added
 - **Core Indexing**: Support for native Regular Expressions and Field Grouping in search queries (leveraging Tantivy 0.26 capabilities).
 - **Sorting**: `--sort date` and `--sort path` now work. The flags were previously declared but wired to nothing, so they silently did nothing. Backed by FAST fields and a `modified` timestamp in the index schema.
