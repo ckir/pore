@@ -130,3 +130,10 @@ cargo release patch --workspace -x    # execute
 All four crates move in lockstep and a single `v{version}` tag is pushed, which is what
 `release.yml` triggers on. Nothing is published to crates.io — the `pore` name there
 belongs to an unrelated project — so `publish = false` is correct and should stay.
+
+The GitHub release body is generated from the `## [<version>]` section of `CHANGELOG.md`,
+so that section is what readers actually see — write it as notes, not as a changelog of
+commit subjects. If a release warrants more than the changelog gives, put the long form in
+`docs/releases/<version>.md` and apply it with
+`gh release edit v<version> --notes-file docs/releases/<version>.md`;
+[`docs/releases/v0.3.0.md`](docs/releases/v0.3.0.md) is the worked example.
