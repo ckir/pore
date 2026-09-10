@@ -29,8 +29,17 @@ mod paths;
 fn main() {
     match run() {
         Err(err) => {
-            eprintln!("Error: {}", err);
-            eprintln!("{:?}", err.backtrace());
+            eprintln!("Error: {err}");
+            // Only print a backtrace that was actually captured. Printing it
+            // unconditionally put the literal "<disabled>" after every error message,
+            // because that is how std::backtrace::Backtrace renders when capture is off
+            // -- which is the default, so ordinary users saw it on every failure.
+            // Display rather than Debug: Debug renders the whole trace as one
+            // unreadable line.
+            let backtrace = err.backtrace();
+            if backtrace.status() == std::backtrace::BacktraceStatus::Captured {
+                eprintln!("{backtrace}");
+            }
             process::exit(2);
         }
         Ok(false) => {

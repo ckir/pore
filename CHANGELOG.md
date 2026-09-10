@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Documentation**: Comprehensive `ROADMAP.md` tracking all upcoming features.
 
 ### Fixed
+- **Error output**: every failing command printed a stray `<disabled>` line after the message. `main` printed `err.backtrace()` unconditionally, and that is how `std::backtrace::Backtrace` renders when capture is off — the default. The backtrace is now printed only when it was actually captured, and via `Display` rather than `Debug`, so `RUST_BACKTRACE=1` gives a readable numbered trace instead of one long line.
 - **Windows**: pore hard-required `HOME`, which Windows does not set, so every command that touched the config file or the index cache failed with a bare `environment variable not found` — only `--help` and `--version` worked. Both lookups now fall back to `%USERPROFILE%` after `HOME`, and when nothing resolves the error names every variable it consulted instead of propagating `VarError::NotPresent`.
 
 ### Changed

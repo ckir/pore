@@ -453,3 +453,69 @@ fn unresolvable_home_names_the_variables_it_tried() {
         "error should name the variables it tried, got: {stderr}"
     );
 }
+
+/// Runs a command that always fails, with `RUST_BACKTRACE` set as given.
+fn failing_command_stderr(backtrace: Option<&str>) -> String {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("a.txt"), "hello").unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let mut cmd = pore();
+    cmd.env("HOME", home.path());
+    match backtrace {
+        // The CI test job sets RUST_BACKTRACE=1, so the "off" case must remove it
+        // rather than rely on it being absent.
+        None => {
+            cmd.env_remove("RUST_BACKTRACE");
+            cmd.env_remove("RUST_LIB_BACKTRACE");
+        }
+        Some(v) => {
+            cmd.env("RUST_BACKTRACE", v);
+        }
+    }
+    let out = cmd
+        .arg("search")
+        .arg("--in-memory")
+        .arg("--rebuild")
+        .arg("--aggregate")
+        .arg("bogus")
+        .arg("hello")
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "this command is supposed to fail");
+    String::from_utf8_lossy(&out.stderr).to_string()
+}
+
+#[test]
+fn errors_do_not_print_a_disabled_backtrace_placeholder() {
+    // main printed err.backtrace() unconditionally, and Backtrace renders as the
+    // literal "<disabled>" when capture is off -- which is the default.
+    for bt in [None, Some("0")] {
+        let stderr = failing_command_stderr(bt);
+        assert!(
+            stderr.contains("cannot aggregate on unknown field"),
+            "the actual error must still be shown: {stderr}"
+        );
+        assert!(
+            !stderr.contains("<disabled>"),
+            "RUST_BACKTRACE={bt:?} must not print a placeholder: {stderr}"
+        );
+    }
+}
+
+#[test]
+fn rust_backtrace_1_still_yields_a_usable_backtrace() {
+    let stderr = failing_command_stderr(Some("1"));
+    assert!(
+        stderr.contains("cannot aggregate on unknown field"),
+        "the error must still be shown: {stderr}"
+    );
+    assert!(
+        stderr.contains("pore"),
+        "a captured backtrace should name our own frames: {stderr}"
+    );
+    assert!(
+        stderr.lines().count() > 3,
+        "a backtrace should be readable multi-line output, not one blob: {stderr}"
+    );
+}
