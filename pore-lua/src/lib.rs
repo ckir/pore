@@ -139,11 +139,14 @@ impl UserData for FileIndexLua {
         methods.add_method(
             "search",
             |_, this, (query_str, opts): (String, FileSearchOptionsShape)| {
-                let query_parser =
+                // allow_regexes() must be kept in step with pore-bin's parser, otherwise
+                // regex queries work from the CLI but not from Lua.
+                let mut query_parser =
                     QueryParser::for_index(this.index.index(), vec![*this.index.contents()]);
-                let query = query_parser
-                    .parse_query(&query_str)
-                    .map_err(|_| LuaError::RuntimeError("Error parsing query".to_string()))?;
+                query_parser.allow_regexes();
+                let query = query_parser.parse_query(&query_str).map_err(|e| {
+                    LuaError::RuntimeError(format!("Error parsing query {query_str:?}: {e}"))
+                })?;
                 let results = this
                     .index
                     .search(&query, &opts.into())
@@ -154,13 +157,14 @@ impl UserData for FileIndexLua {
         methods.add_method(
             "aggregate",
             |lua, this, (query_str, opts): (String, FileSearchOptionsShape)| {
-                let query_parser = tantivy::query::QueryParser::for_index(
+                let mut query_parser = tantivy::query::QueryParser::for_index(
                     this.index.index(),
                     vec![*this.index.contents()],
                 );
-                let query = query_parser
-                    .parse_query(&query_str)
-                    .map_err(|_| mlua::Error::RuntimeError("Error parsing query".to_string()))?;
+                query_parser.allow_regexes();
+                let query = query_parser.parse_query(&query_str).map_err(|e| {
+                    mlua::Error::RuntimeError(format!("Error parsing query {query_str:?}: {e}"))
+                })?;
 
                 let json_val = this
                     .index
@@ -221,11 +225,12 @@ impl UserData for GenericIndexLua {
         methods.add_method(
             "search",
             |_, this, (query_str, opts): (String, SearchOptionsShape)| {
-                let query_parser =
+                let mut query_parser =
                     QueryParser::for_index(this.index.index(), this.index.get_text_fields());
-                let query = query_parser
-                    .parse_query(&query_str)
-                    .map_err(|_| LuaError::RuntimeError("Error parsing query".to_string()))?;
+                query_parser.allow_regexes();
+                let query = query_parser.parse_query(&query_str).map_err(|e| {
+                    LuaError::RuntimeError(format!("Error parsing query {query_str:?}: {e}"))
+                })?;
                 let results = this
                     .index
                     .search(&query, &opts.into())
@@ -316,6 +321,78 @@ mod tests {
             .eval()
             .unwrap();
         assert_eq!(count, 2, "two .rs files match the query");
+    }
+
+    #[test]
+    fn lua_search_supports_regex_like_the_cli() {
+        // The CLI enables allow_regexes() on its parser; the Lua bindings build their
+        // own, so parity has to be asserted separately or it silently drifts.
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("a.txt"), "the big bad wolf").unwrap();
+        let index =
+            FileIndex::get_or_create(tmp.path(), Some(tmp.path()), &FileIndexOptions::default())
+                .unwrap();
+        index.clone().update(false).unwrap();
+
+        let lua = mlua::Lua::new();
+        lua.globals().set("idx", FileIndexLua { index }).unwrap();
+        let n: usize = lua
+            .load(r#"return #idx:search("contents:/w.lf/", nil)"#)
+            .eval()
+            .unwrap();
+        assert_eq!(
+            n, 1,
+            "regex query should match wolf through the Lua binding"
+        );
+    }
+
+    #[test]
+    fn lua_query_error_names_the_underlying_cause() {
+        // The binding used to discard the parse error with map_err(|_| ...), leaving a
+        // Lua caller with "Error parsing query" and no way to tell what was wrong.
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("a.txt"), "hello").unwrap();
+        let index =
+            FileIndex::get_or_create(tmp.path(), Some(tmp.path()), &FileIndexOptions::default())
+                .unwrap();
+        index.clone().update(false).unwrap();
+
+        let lua = mlua::Lua::new();
+        lua.globals().set("idx", FileIndexLua { index }).unwrap();
+        let err = lua
+            .load(r#"return idx:search("nosuchfield:foo", nil)"#)
+            .eval::<mlua::Value>()
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("nosuchfield"),
+            "error should name the offending field, got: {err}"
+        );
+    }
+
+    #[test]
+    fn lua_generic_index_search_supports_regex_too() {
+        // Same parity requirement as the file index: GenericIndex builds its own parser.
+        let tmp = TempDir::new().unwrap();
+        let mut index = GenericIndex::get_or_create(
+            "id",
+            vec!["text"],
+            &IndexOptions::default(),
+            Some(tmp.path()),
+        )
+        .unwrap();
+        let mut doc = HashMap::new();
+        doc.insert("id".to_string(), "1".to_string());
+        doc.insert("text".to_string(), "the big bad wolf".to_string());
+        index.add_documents(vec![doc]).unwrap();
+
+        let lua = mlua::Lua::new();
+        lua.globals().set("idx", GenericIndexLua { index }).unwrap();
+        let n: usize = lua
+            .load(r#"return #idx:search("text:/w.lf/", nil)"#)
+            .eval()
+            .unwrap();
+        assert_eq!(n, 1, "regex should work through the generic index binding");
     }
 
     #[test]
